@@ -14,7 +14,10 @@ export default async function HomePage({
   return (
     <section className="space-y-8 py-8">
       <div className="space-y-4">
-        <h1 className="text-4xl font-bold tracking-tight">{t("title")}</h1>
+        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight leading-tight">
+          {t("title")}
+        </h1>
+        <p className="text-sm text-[var(--muted)]">{t("titleAcronym")}</p>
         <p className="text-lg text-[var(--muted)] max-w-2xl">{t("subtitle")}</p>
         <Link
           href="/login"

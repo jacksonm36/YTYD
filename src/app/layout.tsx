@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "YAYTD — Yet Another YouTube Downloader",
+  title: "Yet Another YouTube Downloader",
+  description: "YAYTD — self-hosted multi-platform media downloader",
   description: "Multi-platform video downloader: YouTube, TikTok, Instagram, Facebook, and more",
 };
 

@@ -1,6 +1,7 @@
 {
   "common": {
-    "appName": "YAYTD",
+    "appName": "Yet Another YouTube Downloader",
+    "appShortName": "YAYTD",
     "loading": "Betöltés…",
     "save": "Mentés",
     "cancel": "Mégse",
@@ -17,7 +18,8 @@
     "logout": "Kijelentkezés"
   },
   "home": {
-    "title": "YAYTD — Yet Another YouTube Downloader",
+    "title": "Yet Another YouTube Downloader",
+    "titleAcronym": "YAYTD — többplatformos média letöltő",
     "subtitle": "YouTube, TikTok, Instagram, Facebook és más oldalak — illeszd be a linket, válaszd ki a formátumot, töltsd le.",
     "cta": "Bejelentkezés",
     "feature1": "YouTube, Shorts, TikTok, Reels, Facebook",

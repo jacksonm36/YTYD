@@ -1,8 +1,8 @@
-# YTYD / YAYTD — Yet Another YouTube Downloader
+# Yet Another YouTube Downloader (YAYTD)
+
+**YAYTD** is the short name for **Yet Another YouTube Downloader** — a secure, self-hosted media downloader. Paste a link from **YouTube, TikTok, Instagram, Facebook, X, Vimeo, Reddit, Twitch**, and more, pick a format, and save to your device. Powered by **yt-dlp**, **Next.js**, **Auth.js**, **PostgreSQL**, and **Redis** (BullMQ).
 
 **Repository:** [github.com/jacksonm36/YTYD](https://github.com/jacksonm36/YTYD) · **Install guide:** [INSTALL.md](INSTALL.md)
-
-**YAYTD** is a secure, self-hosted media downloader: paste a link from **YouTube, TikTok, Instagram, Facebook, X, Vimeo, Reddit, Twitch**, and more, pick a format, and save to your device. Powered by **yt-dlp**, **Next.js**, **Auth.js**, **PostgreSQL**, and **Redis** (BullMQ).
 
 Runs **natively on Linux** (no Docker). HTTPS is terminated at your **reverse proxy**; the Node app listens on `http://127.0.0.1:3000`.
 
@@ -64,7 +64,7 @@ It then runs **everything**: apt packages (Node 22, PostgreSQL, Redis, ffmpeg, y
 ### Non-interactive / fast install
 
 ```bash
-# Defaults + only DB password prompt
+# Defaults + auto-generated secrets
 sudo ./scripts/install.sh -y
 
 # Fully unattended (secrets auto-generated if omitted)
@@ -96,7 +96,7 @@ TLS and certificates stay on the proxy. Required headers to the app:
 
 | Header | Value |
 |--------|--------|
-| `Host` | `letolto.gamedns.hu` |
+| `Host` | your domain |
 | `X-Forwarded-Proto` | `https` |
 | `X-Forwarded-For` | client IP |
 | `X-Real-IP` | client IP |

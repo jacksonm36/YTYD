@@ -1,8 +1,8 @@
-# YTYD — production install
+# Yet Another YouTube Downloader (YAYTD) — production install
 
 Repository: [github.com/jacksonm36/YTYD](https://github.com/jacksonm36/YTYD)
 
-**YAYTD** (Yet Another YouTube Downloader) — self-hosted multi-platform downloader with invite-only registration, admin approval, and Redis-backed job queue.
+**YAYTD** = **Y**et **A**nother **Y**ou**T**ube **D**ownloader — self-hosted multi-platform downloader with invite-only registration, admin approval, and Redis-backed job queue.
 
 ## Requirements
 
@@ -60,7 +60,7 @@ Point your reverse proxy at `http://127.0.0.1:3000` with `X-Forwarded-Proto`, `X
 ### Redeploy after `git pull`
 
 ```bash
-cd /path/to/YTYD   # or your clone directory
+cd /path/to/YTYD
 git pull
 sudo ./scripts/deploy-native.sh
 ```

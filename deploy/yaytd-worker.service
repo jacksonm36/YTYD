@@ -1,5 +1,5 @@
 [Unit]
-Description=YAYTD — download worker (Redis / BullMQ / yt-dlp)
+Description=Yet Another YouTube Downloader (YAYTD) — download worker
 After=network-online.target redis-server.service
 Wants=network-online.target
 

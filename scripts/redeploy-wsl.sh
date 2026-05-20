@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Redeploy YAYTD on WSL — copies to ~/yaytd (Linux FS) to avoid /mnt/d npm EACCES.
+# Redeploy Yet Another YouTube Downloader (YAYTD) on WSL
 set -euo pipefail
 
 SRC="$(cd "$(dirname "$0")/.." && pwd)"
@@ -9,7 +9,7 @@ bold() { printf '\033[1m%s\033[0m\n' "$*"; }
 ok() { printf '\033[32m✓\033[0m %s\n' "$*"; }
 warn() { printf '\033[33m!\033[0m %s\n' "$*"; }
 
-bold "YAYTD — WSL redeploy"
+bold "Yet Another YouTube Downloader (YAYTD) — WSL redeploy"
 echo "Source: ${SRC}"
 echo "Target: ${DEST} (Linux filesystem — avoids /mnt/d npm errors)"
 

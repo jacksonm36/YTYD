@@ -31,8 +31,13 @@ export function Header() {
   return (
     <header className="border-b border-[var(--border)] bg-[var(--card)]/80 backdrop-blur sticky top-0 z-50">
       <div className="container mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-4 max-w-5xl">
-        <Link href="/" className="font-semibold text-lg text-[var(--foreground)]">
-          {tCommon("appName")}
+        <Link
+          href="/"
+          className="font-semibold text-sm sm:text-base text-[var(--foreground)] max-w-[12rem] sm:max-w-none leading-snug"
+          title={tCommon("appName")}
+        >
+          <span className="hidden sm:inline">{tCommon("appName")}</span>
+          <span className="sm:hidden">{tCommon("appShortName")}</span>
         </Link>
         <nav className="flex flex-wrap items-center gap-1">
           {navLink("/", t("home"))}

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Create PostgreSQL role/database for YAYTD (standalone step).
+# Create PostgreSQL role/database for Yet Another YouTube Downloader (YAYTD).
 set -euo pipefail
 
 DB_NAME="${YAYTD_DB_NAME:-yaytd}"

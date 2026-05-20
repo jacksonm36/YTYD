@@ -1,6 +1,7 @@
 {
   "common": {
-    "appName": "YAYTD",
+    "appName": "Yet Another YouTube Downloader",
+    "appShortName": "YAYTD",
     "loading": "Loading…",
     "save": "Save",
     "cancel": "Cancel",
@@ -17,7 +18,8 @@
     "logout": "Sign out"
   },
   "home": {
-    "title": "YAYTD — Yet Another YouTube Downloader",
+    "title": "Yet Another YouTube Downloader",
+    "titleAcronym": "YAYTD — multi-platform media downloader",
     "subtitle": "YouTube, TikTok, Instagram, Facebook, and more — paste a link, pick a format, download.",
     "cta": "Sign in",
     "feature1": "YouTube, Shorts, TikTok, Reels, Facebook",

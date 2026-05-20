@@ -1,5 +1,5 @@
 [Unit]
-Description=YAYTD — Yet Another YouTube Downloader (Next.js)
+Description=Yet Another YouTube Downloader (YAYTD) — Next.js
 Documentation=file:///opt/yaytd/README.md
 After=network-online.target postgresql.service redis-server.service
 Wants=network-online.target
