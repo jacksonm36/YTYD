@@ -49,6 +49,24 @@ err() { printf '\033[31m✗\033[0m %s\n' "$*" >&2; }
 
 die() { err "$*"; exit 1; }
 
+# npm as SYSTEM_USER: rsync leaves root-owned files; npm cache must be writable
+ensure_app_dir_owned() {
+  mkdir -p "${APP_DIR}/.cache/npm"
+  if [[ -e "${APP_DIR}/.npm" ]]; then
+    chown -R "${SYSTEM_USER}:${SYSTEM_USER}" "${APP_DIR}/.npm" 2>/dev/null || true
+  fi
+  chown -R "${SYSTEM_USER}:${SYSTEM_USER}" "${APP_DIR}/.cache" 2>/dev/null || true
+  chown -R "${SYSTEM_USER}:${SYSTEM_USER}" "${APP_DIR}"
+}
+
+run_as_app_user() {
+  ensure_app_dir_owned
+  sudo -u "${SYSTEM_USER}" env \
+    HOME="${APP_DIR}" \
+    NPM_CONFIG_CACHE="${APP_DIR}/.cache/npm" \
+    "$@"
+}
+
 # Cryptographically random secret (hex, URL/DB-safe)
 rand_hex() {
   local nbytes="${1:-32}"
@@ -603,8 +621,8 @@ step_user_dirs() {
   else
     ok "User ${SYSTEM_USER} exists"
   fi
-  mkdir -p "${APP_DIR}" "${DATA_DIR}" "${APP_DIR}/data"
-  chown -R "${SYSTEM_USER}:${SYSTEM_USER}" "${DATA_DIR}" "${APP_DIR}/data" 2>/dev/null || true
+  mkdir -p "${APP_DIR}" "${DATA_DIR}" "${APP_DIR}/data" "${APP_DIR}/.cache/npm"
+  chown -R "${SYSTEM_USER}:${SYSTEM_USER}" "${APP_DIR}" "${DATA_DIR}" 2>/dev/null || true
 }
 
 step_postgres() {
@@ -653,20 +671,21 @@ step_deploy() {
     --exclude data \
     "${SOURCE_DIR}/" "${APP_DIR}/"
 
-  chown "${SYSTEM_USER}:${SYSTEM_USER}" "${APP_DIR}/.env"
+  ensure_app_dir_owned
 
   cd "${APP_DIR}"
-  sudo -u "${SYSTEM_USER}" npm ci
-  sudo -u "${SYSTEM_USER}" npx prisma generate
-  sudo -u "${SYSTEM_USER}" npm run build
+  run_as_app_user npm ci
+  run_as_app_user npx prisma generate
+  run_as_app_user npm run build
+  ensure_app_dir_owned
   ok "Application built in ${APP_DIR}"
 }
 
 step_database() {
   bold "==> [6/8] Database migrations and admin seed"
   cd "${APP_DIR}"
-  sudo -u "${SYSTEM_USER}" npx prisma migrate deploy
-  ADMIN_DEFAULT_PASSWORD="${ADMIN_PASSWORD}" sudo -u "${SYSTEM_USER}" npm run db:seed-admin
+  run_as_app_user npx prisma migrate deploy
+  ADMIN_DEFAULT_PASSWORD="${ADMIN_PASSWORD}" run_as_app_user npm run db:seed-admin
   if [[ "${DB_HOST}" == "127.0.0.1" || "${DB_HOST}" == "localhost" ]]; then
     local sql_invite
     sql_invite="${INVITE_TOKEN//\'/\'\'}"
@@ -682,7 +701,7 @@ step_geoip() {
   if [[ -n "${MAXMIND_KEY}" ]]; then
     bold "==> [7/8] MaxMind GeoLite (optional)"
     cd "${APP_DIR}"
-    sudo -u "${SYSTEM_USER}" npm run geoip:update 2>/dev/null && ok "GeoLite database updated" || warn "GeoIP update failed (check MAXMIND_LICENSE_KEY)"
+    run_as_app_user npm run geoip:update 2>/dev/null && ok "GeoLite database updated" || warn "GeoIP update failed (check MAXMIND_LICENSE_KEY)"
   else
     dim "==> [7/8] Skipping GeoIP (no MaxMind key)"
   fi
