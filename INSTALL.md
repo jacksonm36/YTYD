@@ -97,6 +97,30 @@ Do **not** run bare `npx prisma` before `npm ci` — it may download the wrong P
 
 **Requirements:** Node.js **20.19+** (22.x recommended), Prisma ORM **7** with PostgreSQL driver adapter.
 
+### `P1000` — database authentication failed after redeploy
+
+The installer previously rotated the PostgreSQL password but kept the old password in `.env`. Pull the latest installer, then either:
+
+```bash
+# Align Postgres with the password already in /opt/yaytd/.env
+sudo ./scripts/repair-db-auth.sh
+sudo -u yaytd env HOME=/opt/yaytd NPM_CONFIG_CACHE=/opt/yaytd/.cache/npm npm run db:migrate --prefix /opt/yaytd
+```
+
+Or use the password from the last `.install-secrets` (if `.env` is wrong):
+
+```bash
+sudo grep database_password /opt/yaytd/.install-secrets
+# Update DATABASE_URL in /opt/yaytd/.env, then run repair-db-auth.sh
+```
+
+Redeploy without prompts:
+
+```bash
+git pull
+sudo ./install.sh --skip-packages   # reuses /opt/yaytd/.env when install.conf is missing
+```
+
 ## Legal
 
 Users must only download content they are allowed to access. A terms checkbox is required before each download.

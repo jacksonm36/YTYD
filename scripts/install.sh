@@ -37,6 +37,8 @@ ASSUME_YES=0
 SKIP_PACKAGES=0
 SKIP_BUILD=0
 INSTALL_NGINX=""
+REDEPLOY_MODE=0
+PRESERVE_EXISTING_SECRETS=0
 
 # ---------------------------------------------------------------------------
 # UI helpers
@@ -187,44 +189,111 @@ load_install_config() {
   return 0
 }
 
+parse_database_url() {
+  local dburl="$1"
+  [[ -n "${dburl}" && -n "$(command -v node)" ]] || return 1
+  DB_USER="$(node -e "const u=new URL(process.argv[1]); console.log(decodeURIComponent(u.username||''))" "${dburl}")"
+  DB_PASSWORD="$(node -e "const u=new URL(process.argv[1]); console.log(decodeURIComponent(u.password||''))" "${dburl}")"
+  DB_HOST="$(node -e "const u=new URL(process.argv[1]); console.log(u.hostname)" "${dburl}")"
+  DB_PORT="$(node -e "const u=new URL(process.argv[1]); console.log(u.port||'5432')" "${dburl}")"
+  DB_NAME="$(node -e "const u=new URL(process.argv[1]); console.log(decodeURIComponent((u.pathname||'/').slice(1).split('?')[0]||''))" "${dburl}")"
+  [[ -n "${DB_PASSWORD}" ]]
+}
+
+build_database_url() {
+  node -e "
+    const u = new URL('postgresql://127.0.0.1:5432/yaytd');
+    u.username = process.argv[1];
+    u.password = process.argv[2];
+    u.hostname = process.argv[3];
+    u.port = String(process.argv[4]);
+    u.pathname = '/' + process.argv[5];
+    u.searchParams.set('schema', 'public');
+    console.log(u.toString());
+  " "${DB_USER}" "${DB_PASSWORD}" "${DB_HOST}" "${DB_PORT}" "${DB_NAME}"
+}
+
 preserve_env_secrets() {
   local envfile="${APP_DIR}/.env"
   [[ -f "${envfile}" ]] || return 0
   local line val
-  for line in AUTH_SECRET DOWNLOAD_TOKEN_SECRET; do
+  for line in AUTH_SECRET DOWNLOAD_TOKEN_SECRET APP_URL REDIS_URL; do
     val="$(grep -E "^${line}=" "${envfile}" | head -1 | cut -d= -f2- | tr -d '"\r' || true)"
     [[ -n "${val}" ]] && printf -v "${line}" '%s' "${val}"
   done
+  val="$(grep -E '^QUEUE_CONCURRENCY=' "${envfile}" | head -1 | cut -d= -f2- | tr -d '"\r' || true)"
+  [[ -n "${val}" ]] && QUEUE_CONCURRENCY="${val}"
+
   local dburl
   dburl="$(grep -E '^DATABASE_URL=' "${envfile}" | head -1 | cut -d= -f2- | tr -d '"\r' || true)"
-  if [[ "${dburl}" =~ postgresql://[^:]+:([^@]+)@ ]]; then
-    DB_PASSWORD="${BASH_REMATCH[1]}"
+  if parse_database_url "${dburl}"; then
+    PRESERVE_EXISTING_SECRETS=1
   fi
+
+  local secrets="${APP_DIR}/.install-secrets"
+  if [[ -f "${secrets}" ]]; then
+    val="$(grep -E '^admin_password=' "${secrets}" | head -1 | cut -d= -f2- | tr -d '"\r' || true)"
+    [[ -n "${val}" ]] && ADMIN_PASSWORD="${val}"
+    val="$(grep -E '^invite_token=' "${secrets}" | head -1 | cut -d= -f2- | tr -d '"\r' || true)"
+    [[ -n "${val}" ]] && INVITE_TOKEN="${val}"
+  fi
+}
+
+load_redeploy_from_existing() {
+  local envfile="${DEFAULT_APP_DIR}/.env"
+  [[ -f "${envfile}" ]] || return 1
+  APP_DIR="${DEFAULT_APP_DIR}"
+  DATA_DIR="${DATA_DIR:-${DEFAULT_DATA_DIR}}"
+  SYSTEM_USER="${SYSTEM_USER:-${DEFAULT_USER}}"
+  APP_PORT="${APP_PORT:-${DEFAULT_PORT}}"
+  MAX_PENDING="${MAX_PENDING:-${DEFAULT_PENDING}}"
+  INSTALL_SYSTEMD="${INSTALL_SYSTEMD:-1}"
+  [[ -z "${INSTALL_NGINX}" ]] && INSTALL_NGINX="no"
+  preserve_env_secrets
+  if [[ -n "${APP_URL:-}" ]]; then
+    DOMAIN="${APP_URL#https://}"
+    DOMAIN="${DOMAIN#http://}"
+    DOMAIN="${DOMAIN%%/*}"
+  else
+    DOMAIN="${DEFAULT_DOMAIN}"
+    APP_URL="https://${DOMAIN}"
+  fi
+  REDEPLOY_MODE=1
+  PRESERVE_EXISTING_SECRETS=1
+  dim "Reusing existing ${envfile} (redeploy; DB password unchanged)"
+  return 0
 }
 
 # ---------------------------------------------------------------------------
 # Configuration wizard
 # ---------------------------------------------------------------------------
 run_wizard() {
-  if [[ "${SKIP_PACKAGES}" -eq 1 ]] && load_install_config "${DEFAULT_APP_DIR}/install.conf"; then
-    APP_DIR="${APP_DIR:-${DEFAULT_APP_DIR}}"
-    DATA_DIR="${DATA_DIR:-${DEFAULT_DATA_DIR}}"
-    SYSTEM_USER="${SYSTEM_USER:-${DEFAULT_USER}}"
-    APP_PORT="${APP_PORT:-${DEFAULT_PORT}}"
-    DB_NAME="${DB_NAME:-${DEFAULT_DB_NAME}}"
-    DB_USER="${DB_USER:-${DEFAULT_DB_USER}}"
-    DB_HOST="${DB_HOST:-${DEFAULT_DB_HOST}}"
-    DB_PORT="${DB_PORT:-${DEFAULT_DB_PORT}}"
-    REDIS_URL="${REDIS_URL:-${DEFAULT_REDIS}}"
-    QUEUE_CONCURRENCY="${QUEUE_CONCURRENCY:-${DEFAULT_QUEUE}}"
-    MAX_PENDING="${MAX_PENDING:-${DEFAULT_PENDING}}"
-    INSTALL_SYSTEMD="${INSTALL_SYSTEMD:-1}"
-    [[ -z "${INSTALL_NGINX}" ]] && INSTALL_NGINX="no"
-    preserve_env_secrets
-    ADMIN_PASSWORD="${ADMIN_PASSWORD:-$(rand_hex 16)}"
-    INVITE_TOKEN="${INVITE_TOKEN:-$(rand_hex 32)}"
-    dim "Reusing ${APP_DIR}/install.conf (non-interactive redeploy)"
-    return
+  if [[ "${SKIP_PACKAGES}" -eq 1 ]]; then
+    if load_install_config "${DEFAULT_APP_DIR}/install.conf"; then
+      APP_DIR="${APP_DIR:-${DEFAULT_APP_DIR}}"
+      DATA_DIR="${DATA_DIR:-${DEFAULT_DATA_DIR}}"
+      SYSTEM_USER="${SYSTEM_USER:-${DEFAULT_USER}}"
+      APP_PORT="${APP_PORT:-${DEFAULT_PORT}}"
+      DB_NAME="${DB_NAME:-${DEFAULT_DB_NAME}}"
+      DB_USER="${DB_USER:-${DEFAULT_DB_USER}}"
+      DB_HOST="${DB_HOST:-${DEFAULT_DB_HOST}}"
+      DB_PORT="${DB_PORT:-${DEFAULT_DB_PORT}}"
+      REDIS_URL="${REDIS_URL:-${DEFAULT_REDIS}}"
+      QUEUE_CONCURRENCY="${QUEUE_CONCURRENCY:-${DEFAULT_QUEUE}}"
+      MAX_PENDING="${MAX_PENDING:-${DEFAULT_PENDING}}"
+      INSTALL_SYSTEMD="${INSTALL_SYSTEMD:-1}"
+      [[ -z "${INSTALL_NGINX}" ]] && INSTALL_NGINX="no"
+      preserve_env_secrets
+      REDEPLOY_MODE=1
+      [[ "${PRESERVE_EXISTING_SECRETS}" -eq 1 ]] || DB_PASSWORD="${DB_PASSWORD:-$(rand_hex 24)}"
+      ADMIN_PASSWORD="${ADMIN_PASSWORD:-$(rand_hex 16)}"
+      INVITE_TOKEN="${INVITE_TOKEN:-$(rand_hex 32)}"
+      dim "Reusing ${APP_DIR}/install.conf (non-interactive redeploy)"
+      return
+    fi
+    if load_redeploy_from_existing; then
+      return
+    fi
   fi
 
   bold ""
@@ -384,7 +453,8 @@ write_env_file() {
   AUTH_SECRET="${AUTH_SECRET:-$(generate_auth_secret)}"
   DOWNLOAD_TOKEN_SECRET="${DOWNLOAD_TOKEN_SECRET:-$(generate_download_token_secret)}"
 
-  local db_url="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?schema=public"
+  local db_url
+  db_url="$(build_database_url)"
 
   cat > "${target}" <<EOF
 # Generated by scripts/install.sh on $(date -Iseconds)
@@ -680,8 +750,12 @@ step_postgres() {
     sudo -u postgres psql -c "CREATE USER ${DB_USER} WITH PASSWORD '${sql_pw}';"
     ok "Created role ${DB_USER}"
   else
-    sudo -u postgres psql -c "ALTER USER ${DB_USER} WITH PASSWORD '${sql_pw}';"
-    ok "Updated password for ${DB_USER}"
+    if [[ "${PRESERVE_EXISTING_SECRETS}" -eq 1 ]]; then
+      ok "Keeping existing PostgreSQL password for ${DB_USER} (from ${APP_DIR}/.env)"
+    else
+      sudo -u postgres psql -c "ALTER USER ${DB_USER} WITH PASSWORD '${sql_pw}';"
+      ok "Updated password for ${DB_USER}"
+    fi
   fi
 
   if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'" | grep -q 1; then
@@ -701,7 +775,11 @@ step_env() {
   chown "${SYSTEM_USER}:${SYSTEM_USER}" "${APP_DIR}/.env"
   write_install_secrets_file
   save_install_config
-  ok "Wrote ${APP_DIR}/.env (random AUTH_SECRET + DOWNLOAD_TOKEN_SECRET)"
+  if [[ "${PRESERVE_EXISTING_SECRETS}" -eq 1 ]]; then
+    ok "Wrote ${APP_DIR}/.env (preserved existing secrets)"
+  else
+    ok "Wrote ${APP_DIR}/.env (random AUTH_SECRET + DOWNLOAD_TOKEN_SECRET)"
+  fi
   ok "Wrote ${APP_DIR}/.install-secrets (DB + admin passwords)"
 }
 
