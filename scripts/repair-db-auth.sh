@@ -4,18 +4,21 @@ set -euo pipefail
 
 APP_DIR="${YAYTD_APP_DIR:-/opt/yaytd}"
 MODE="auto"
+SOURCE_DIR=""
 
 usage() {
   cat <<'EOF'
 Fix database authentication (Prisma P1000).
 
-  sudo ./repair-db.sh --auto              Test .env; repair from .install-secrets if needed
-  sudo ./repair-db.sh --from-secrets      Force password from .install-secrets into Postgres + .env
+  sudo ./repair-db.sh --auto              Repair (env → secrets → new password)
+  sudo ./repair-db.sh --from-secrets      Force password from .install-secrets
   sudo ./repair-db.sh --from-env          Force password from .env into PostgreSQL
+  sudo ./repair-db.sh --reset             New random DB password + .env + .install-secrets
 
   sudo ./repair-db.sh --app-dir /opt/yaytd
+  sudo ./repair-db.sh --source-dir ~/YTYD   Also search clone for .install-secrets
 
-Run from the git clone (~/YTYD) or from /opt/yaytd after deploy.
+Run from ~/YTYD (git clone) or /opt/yaytd after deploy.
 EOF
 }
 
@@ -24,6 +27,11 @@ while [[ $# -gt 0 ]]; do
     --auto) MODE="auto" ;;
     --from-secrets) MODE="secrets" ;;
     --from-env) MODE="env" ;;
+    --reset) MODE="reset" ;;
+    --source-dir)
+      SOURCE_DIR="${2:?}"
+      shift
+      ;;
     --app-dir)
       APP_DIR="${2:?}"
       shift
@@ -62,12 +70,23 @@ if [[ ! -f "${ENV_FILE}" ]]; then
   exit 1
 fi
 
+if [[ -z "${SOURCE_DIR}" && -d "$(dirname "${SCRIPT_DIR}")/.git" ]]; then
+  SOURCE_DIR="$(cd "$(dirname "${SCRIPT_DIR}")" && pwd)"
+fi
+
 if [[ "${MODE}" == "auto" ]]; then
-  ensure_db_credentials_synced "${APP_DIR}"
+  ensure_db_credentials_synced "${APP_DIR}" "${SOURCE_DIR}"
   echo ""
   echo "Next:"
   echo "  cd ${APP_DIR} && sudo -u yaytd npm run db:migrate"
   echo "  cd ${APP_DIR} && sudo -u yaytd npm run db:seed-admin"
+  exit 0
+fi
+
+if [[ "${MODE}" == "reset" ]]; then
+  read_database_url_from_env "${ENV_FILE}" || exit 1
+  reset_db_password_and_env "${APP_DIR}" || exit 1
+  echo "OK — password reset. Save ${APP_DIR}/.install-secrets then delete it."
   exit 0
 fi
 
@@ -82,7 +101,12 @@ read_database_url_from_env "${ENV_FILE}" || {
 }
 
 if [[ "${MODE}" == "secrets" ]]; then
-  [[ -f "${SECRETS_FILE}" ]] || { echo "ERROR: missing ${SECRETS_FILE}"; exit 1; }
+  SECRETS_FILE="$(find_install_secrets_file "${APP_DIR}" "${SOURCE_DIR}" 2>/dev/null || true)"
+  [[ -n "${SECRETS_FILE}" && -f "${SECRETS_FILE}" ]] || {
+    echo "ERROR: no .install-secrets in ${APP_DIR} or ${SOURCE_DIR:-clone}"
+    echo "  Run: sudo ./repair-db.sh --reset"
+    exit 1
+  }
   DB_PASSWORD="$(read_password_from_secrets "${SECRETS_FILE}")"
   [[ -n "${DB_PASSWORD}" ]] || { echo "ERROR: database_password empty in secrets"; exit 1; }
   DATABASE_URL="$(build_database_url)"

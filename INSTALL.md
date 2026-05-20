@@ -104,8 +104,11 @@ The installer previously rotated the PostgreSQL password but kept the old passwo
 ```bash
 cd ~/YTYD && git pull
 
-# One-shot: repair DB + migrate + seed + systemd (after a partial install)
+# One-shot: sync code to /opt/yaytd, repair DB, migrate, seed, systemd
 sudo ./finish-install.sh
+
+# If repair still fails (no .install-secrets): reset DB password
+sudo ./repair-db.sh --reset
 
 # Or step by step:
 sudo ./repair-db.sh --auto

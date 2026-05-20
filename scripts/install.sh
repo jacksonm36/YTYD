@@ -769,7 +769,7 @@ step_env() {
   fi
   ok "Wrote ${APP_DIR}/.install-secrets (DB + admin passwords)"
 
-  ensure_db_credentials_synced "${APP_DIR}" || warn "Database login check failed — will retry before migrate"
+  ensure_db_credentials_synced "${APP_DIR}" "${SOURCE_DIR}" || warn "Database login check failed — will retry before migrate"
 }
 
 step_deploy() {
@@ -796,7 +796,7 @@ step_deploy() {
 
 step_database() {
   bold "==> [6/8] Database migrations and admin seed"
-  if ! ensure_db_credentials_synced "${APP_DIR}"; then
+  if ! ensure_db_credentials_synced "${APP_DIR}" "${SOURCE_DIR}"; then
     die "Database credentials invalid. Run: sudo ${APP_DIR}/repair-db.sh --auto"
   fi
   cd "${APP_DIR}"

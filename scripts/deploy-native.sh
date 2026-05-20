@@ -40,7 +40,7 @@ chmod 600 "${APP_DIR}/.env"
 
 verify_package_lock "${SOURCE_DIR}"
 
-ensure_db_credentials_synced "${APP_DIR}" || {
+ensure_db_credentials_synced "${APP_DIR}" "${SOURCE_DIR}" || {
   echo "WARN: DB auth mismatch — run: sudo ${APP_DIR}/repair-db.sh --auto"
 }
 

@@ -109,11 +109,83 @@ sync_secrets_database_password() {
   " "${secrets}" "${password}"
 }
 
-# Align PostgreSQL with .env; if login fails, use .install-secrets and update .env.
-ensure_db_credentials_synced() {
+rand_db_password() {
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -hex 24
+  else
+    head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n'
+  fi
+}
+
+write_install_secrets_stub() {
+  local app_dir="${1:?}" db_pw="${2:?}" admin_pw="${3:-admin}"
+  local secrets="${app_dir}/.install-secrets"
+  cat > "${secrets}" <<EOF
+# YAYTD credentials — $(date -Iseconds 2>/dev/null || date)
+# Save passwords, then delete this file.
+
+database_user="${DB_USER}"
+database_name="${DB_NAME}"
+database_password="${db_pw}"
+
+admin_username="admin"
+admin_password="${admin_pw}"
+EOF
+  chmod 600 "${secrets}"
+  if id "${YAYTD_USER:-yaytd}" &>/dev/null; then
+    chown "${YAYTD_USER:-yaytd}:${YAYTD_USER:-yaytd}" "${secrets}" 2>/dev/null || true
+  fi
+}
+
+# Force PostgreSQL role password to match .env (when only DB was rotated).
+sync_postgres_to_env_password() {
+  local envfile="${1:?}"
+  read_database_url_from_env "${envfile}" || return 1
+  echo "INFO: Setting PostgreSQL role ${DB_USER} password from ${envfile}"
+  apply_postgres_password "${DB_USER}" "${DB_PASSWORD}"
+  test_postgres_login "${DB_USER}" "${DB_PASSWORD}" "${DB_HOST}" "${DB_PORT}" "${DB_NAME}"
+}
+
+# New random password → Postgres + .env + .install-secrets (hex, URL-safe).
+reset_db_password_and_env() {
   local app_dir="${1:?}"
   local envfile="${app_dir}/.env"
   local secrets="${app_dir}/.install-secrets"
+
+  read_database_url_from_env "${envfile}" || return 1
+
+  DB_PASSWORD="$(rand_db_password)"
+  DATABASE_URL="$(build_database_url)"
+  echo "INFO: Resetting database password for role ${DB_USER} (new random password)"
+  apply_postgres_password "${DB_USER}" "${DB_PASSWORD}"
+  write_database_url_to_env "${envfile}" "${DATABASE_URL}"
+  write_install_secrets_stub "${app_dir}" "${DB_PASSWORD}" "admin"
+  echo "INFO: Wrote ${secrets} and updated ${envfile}"
+  test_postgres_login "${DB_USER}" "${DB_PASSWORD}" "${DB_HOST}" "${DB_PORT}" "${DB_NAME}"
+}
+
+find_install_secrets_file() {
+  local app_dir="${1:?}"
+  local source_dir="${2:-}"
+  local f
+  for f in \
+    "${app_dir}/.install-secrets" \
+    "${source_dir}/.install-secrets" \
+    "/opt/yaytd/.install-secrets"; do
+    [[ -n "${f}" && -f "${f}" ]] || continue
+    echo "${f}"
+    return 0
+  done
+  return 1
+}
+
+# Align PostgreSQL with .env; if login fails, use .install-secrets and update .env.
+ensure_db_credentials_synced() {
+  local app_dir="${1:?}"
+  local source_dir="${2:-}"
+  local envfile="${app_dir}/.env"
+  local secrets
+  secrets="$(find_install_secrets_file "${app_dir}" "${source_dir}" 2>/dev/null || true)"
 
   if ! command -v node >/dev/null 2>&1; then
     echo "ERROR: node is required for database URL handling" >&2
@@ -138,31 +210,37 @@ ensure_db_credentials_synced() {
     return 0
   fi
 
-  echo "WARN: ${envfile} credentials rejected — syncing from ${secrets}"
+  echo "WARN: login failed for ${DB_USER}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
 
-  if [[ ! -f "${secrets}" ]]; then
-    echo "ERROR: missing ${secrets}. Run: sudo repair-db.sh --from-secrets" >&2
-    return 1
-  fi
-
-  local secret_pw
-  secret_pw="$(read_password_from_secrets "${secrets}")"
-  if [[ -z "${secret_pw}" ]]; then
-    echo "ERROR: database_password missing in ${secrets}" >&2
-    return 1
-  fi
-
-  DB_PASSWORD="${secret_pw}"
-  DATABASE_URL="$(build_database_url)"
-  apply_postgres_password "${DB_USER}" "${secret_pw}"
-  write_database_url_to_env "${envfile}" "${DATABASE_URL}"
-  sync_secrets_database_password "${secrets}" "${secret_pw}"
-
-  if test_postgres_login "${DB_USER}" "${secret_pw}" "${DB_HOST}" "${DB_PORT}" "${DB_NAME}"; then
-    echo "OK: repaired DB auth (PostgreSQL + ${envfile} match ${secrets})"
+  echo "INFO: Aligning PostgreSQL to password in ${envfile}"
+  if sync_postgres_to_env_password "${envfile}"; then
+    echo "OK: PostgreSQL now matches ${envfile}"
     return 0
   fi
 
-  echo "ERROR: repair failed — check DB_HOST/DB_NAME in ${envfile}" >&2
+  if [[ -n "${secrets}" && -f "${secrets}" ]]; then
+    echo "INFO: Using ${secrets}"
+    local secret_pw
+    secret_pw="$(read_password_from_secrets "${secrets}")"
+    if [[ -n "${secret_pw}" ]]; then
+      DB_PASSWORD="${secret_pw}"
+      DATABASE_URL="$(build_database_url)"
+      apply_postgres_password "${DB_USER}" "${secret_pw}"
+      write_database_url_to_env "${envfile}" "${DATABASE_URL}"
+      if test_postgres_login "${DB_USER}" "${secret_pw}" "${DB_HOST}" "${DB_PORT}" "${DB_NAME}"; then
+        echo "OK: repaired from ${secrets}"
+        return 0
+      fi
+    fi
+  fi
+
+  echo "WARN: no valid .install-secrets — generating new database password"
+  if reset_db_password_and_env "${app_dir}"; then
+    echo "OK: reset DB password — see ${app_dir}/.install-secrets (save it, then delete the file)"
+    return 0
+  fi
+
+  echo "ERROR: could not repair database auth" >&2
+  echo "  Check: systemctl status postgresql, role ${DB_USER}, database ${DB_NAME}" >&2
   return 1
 }
