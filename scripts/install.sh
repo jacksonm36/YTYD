@@ -178,10 +178,55 @@ validate_abs_path() {
   [[ "${1}" == /* ]] || die "Path must be absolute: ${1}"
 }
 
+# Load prior install.conf (redeploy / --skip-packages).
+load_install_config() {
+  local cfg="${1:-}"
+  [[ -n "${cfg}" && -f "${cfg}" ]] || return 1
+  # shellcheck disable=SC1090
+  source "${cfg}"
+  return 0
+}
+
+preserve_env_secrets() {
+  local envfile="${APP_DIR}/.env"
+  [[ -f "${envfile}" ]] || return 0
+  local line val
+  for line in AUTH_SECRET DOWNLOAD_TOKEN_SECRET; do
+    val="$(grep -E "^${line}=" "${envfile}" | head -1 | cut -d= -f2- | tr -d '"\r' || true)"
+    [[ -n "${val}" ]] && printf -v "${line}" '%s' "${val}"
+  done
+  local dburl
+  dburl="$(grep -E '^DATABASE_URL=' "${envfile}" | head -1 | cut -d= -f2- | tr -d '"\r' || true)"
+  if [[ "${dburl}" =~ postgresql://[^:]+:([^@]+)@ ]]; then
+    DB_PASSWORD="${BASH_REMATCH[1]}"
+  fi
+}
+
 # ---------------------------------------------------------------------------
 # Configuration wizard
 # ---------------------------------------------------------------------------
 run_wizard() {
+  if [[ "${SKIP_PACKAGES}" -eq 1 ]] && load_install_config "${DEFAULT_APP_DIR}/install.conf"; then
+    APP_DIR="${APP_DIR:-${DEFAULT_APP_DIR}}"
+    DATA_DIR="${DATA_DIR:-${DEFAULT_DATA_DIR}}"
+    SYSTEM_USER="${SYSTEM_USER:-${DEFAULT_USER}}"
+    APP_PORT="${APP_PORT:-${DEFAULT_PORT}}"
+    DB_NAME="${DB_NAME:-${DEFAULT_DB_NAME}}"
+    DB_USER="${DB_USER:-${DEFAULT_DB_USER}}"
+    DB_HOST="${DB_HOST:-${DEFAULT_DB_HOST}}"
+    DB_PORT="${DB_PORT:-${DEFAULT_DB_PORT}}"
+    REDIS_URL="${REDIS_URL:-${DEFAULT_REDIS}}"
+    QUEUE_CONCURRENCY="${QUEUE_CONCURRENCY:-${DEFAULT_QUEUE}}"
+    MAX_PENDING="${MAX_PENDING:-${DEFAULT_PENDING}}"
+    INSTALL_SYSTEMD="${INSTALL_SYSTEMD:-1}"
+    [[ -z "${INSTALL_NGINX}" ]] && INSTALL_NGINX="no"
+    preserve_env_secrets
+    ADMIN_PASSWORD="${ADMIN_PASSWORD:-$(rand_hex 16)}"
+    INVITE_TOKEN="${INVITE_TOKEN:-$(rand_hex 32)}"
+    dim "Reusing ${APP_DIR}/install.conf (non-interactive redeploy)"
+    return
+  fi
+
   bold ""
   bold "  Yet Another YouTube Downloader (YAYTD)"
   bold "  Interactive installer"
@@ -376,6 +421,7 @@ LOGIN_HISTORY_LIMIT="50"
 LOGIN_HISTORY_RETENTION_DAYS="90"
 
 NODE_ENV="production"
+NEXT_TELEMETRY_DISABLED="1"
 TEMP_DOWNLOAD_DIR="${DATA_DIR}"
 JOB_TTL_HOURS="2"
 
@@ -638,6 +684,7 @@ step_postgres() {
 
 step_env() {
   bold "==> [4/8] Environment file"
+  preserve_env_secrets
   write_env_file "${SOURCE_DIR}/.env"
   cp "${SOURCE_DIR}/.env" "${APP_DIR}/.env"
   chown "${SYSTEM_USER}:${SYSTEM_USER}" "${APP_DIR}/.env"
@@ -757,6 +804,10 @@ print_finish() {
 # ---------------------------------------------------------------------------
 main() {
   parse_args "$@"
+
+  if [[ "${SKIP_PACKAGES}" -eq 1 ]]; then
+    ASSUME_YES=1
+  fi
 
   if [[ "$(id -u)" -ne 0 ]]; then
     die "Run as root: sudo ./scripts/install.sh"

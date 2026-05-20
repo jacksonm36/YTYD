@@ -48,14 +48,8 @@ export async function scheduleJob(jobId: string): Promise<void> {
     return;
   }
 
-  await queue.add(
-    "process",
-    { jobId },
-    {
-      jobId,
-      timeout: config.ytdlpTimeoutMs + 60_000,
-    }
-  );
+  // Job runtime limit is enforced by the worker lockDuration and yt-dlp kill timeout in jobs.ts.
+  await queue.add("process", { jobId }, { jobId });
 }
 
 export async function closeDownloadQueue(): Promise<void> {

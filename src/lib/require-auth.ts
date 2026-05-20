@@ -6,6 +6,7 @@ export async function requireAuth(locale: string): Promise<Session> {
   const session = await auth();
   if (!session?.user?.id) {
     redirect({ href: "/login", locale });
+    throw new Error("redirect");
   }
   return session;
 }

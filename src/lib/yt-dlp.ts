@@ -493,7 +493,7 @@ export async function downloadMedia(params: {
       stdio: ["ignore", "pipe", "pipe"],
     });
 
-    let state = { ...INITIAL_PROGRESS, phase: "downloading" as const };
+    let state: ProgressUpdate = { ...INITIAL_PROGRESS, phase: "downloading" };
 
     const emit = (patch: Partial<ProgressUpdate>) => {
       state = mergeProgress(state, patch);
