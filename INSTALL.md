@@ -71,6 +71,30 @@ See `scripts/install.sh` header or run `./install.sh --help`.
 
 Common variables: `YAYTD_DOMAIN`, `YAYTD_APP_DIR`, `YAYTD_DB_PASSWORD`, `YAYTD_ADMIN_PASSWORD`, `YAYTD_INSTALL_NGINX=yes`.
 
+## Troubleshooting
+
+### `npm ci` — package.json and package-lock.json out of sync
+
+Your clone is behind `main`. Pull the latest lockfile, then redeploy:
+
+```bash
+cd ~/YTYD   # or your clone path
+git pull origin main
+git log -1 --oneline   # should be 2919148 or newer
+
+sudo chown -R yaytd:yaytd /opt/yaytd
+sudo ./install.sh --skip-packages
+```
+
+Or build only:
+
+```bash
+cd ~/YTYD && git pull origin main
+sudo ./scripts/deploy-native.sh
+```
+
+Do **not** run bare `npx prisma` before `npm ci` — it may download Prisma 7. Use `npm run db:migrate` after dependencies are installed.
+
 ## Legal
 
 Users must only download content they are allowed to access. A terms checkbox is required before each download.

@@ -27,6 +27,8 @@ rsync -a --delete \
 cp "${SOURCE_DIR}/.env" "${APP_DIR}/.env"
 chmod 600 "${APP_DIR}/.env"
 
+verify_package_lock "${SOURCE_DIR}"
+
 cd "${APP_DIR}"
 ensure_app_dir_owned
 run_as_app_user npm ci

@@ -657,10 +657,10 @@ step_deploy() {
     "${SOURCE_DIR}/" "${APP_DIR}/"
 
   ensure_app_dir_owned
+  verify_package_lock "${SOURCE_DIR}"
 
   cd "${APP_DIR}"
   run_as_app_user npm ci
-  run_as_app_user npx prisma generate
   run_as_app_user npm run build
   ensure_app_dir_owned
   ok "Application built in ${APP_DIR}"
@@ -669,7 +669,7 @@ step_deploy() {
 step_database() {
   bold "==> [6/8] Database migrations and admin seed"
   cd "${APP_DIR}"
-  run_as_app_user npx prisma migrate deploy
+  run_as_app_user npm run db:migrate
   ADMIN_DEFAULT_PASSWORD="${ADMIN_PASSWORD}" run_as_app_user npm run db:seed-admin
   if [[ "${DB_HOST}" == "127.0.0.1" || "${DB_HOST}" == "localhost" ]]; then
     local sql_invite
