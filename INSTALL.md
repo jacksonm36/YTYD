@@ -102,8 +102,11 @@ Do **not** run bare `npx prisma` before `npm ci` — it may download the wrong P
 The installer previously rotated the PostgreSQL password but kept the old password in `.env`. Pull the latest installer, then either:
 
 ```bash
+cd ~/YTYD && git pull   # need repair-db.sh + scripts/repair-db-auth.sh on disk
+
 # Recommended: test .env, then fix from .install-secrets if needed
-sudo ./scripts/repair-db-auth.sh --auto
+sudo ./repair-db.sh --auto
+# or: sudo bash ./scripts/repair-db-auth.sh --auto
 sudo -u yaytd env HOME=/opt/yaytd NPM_CONFIG_CACHE=/opt/yaytd/.cache/npm npm run db:migrate --prefix /opt/yaytd
 sudo systemctl restart yaytd yaytd-worker
 ```
@@ -111,7 +114,7 @@ sudo systemctl restart yaytd yaytd-worker
 Or force password from `.install-secrets` (after a failed install that rotated secrets):
 
 ```bash
-sudo ./scripts/repair-db-auth.sh --from-secrets
+sudo ./repair-db.sh --from-secrets
 sudo -u yaytd env HOME=/opt/yaytd NPM_CONFIG_CACHE=/opt/yaytd/.cache/npm npm run db:migrate --prefix /opt/yaytd
 ```
 
@@ -127,7 +130,7 @@ sudo ./install.sh --skip-packages   # reuses /opt/yaytd/.env when install.conf i
 Do **not** run `npm install -g npm` as your login user (EACCES on `/usr/lib/node_modules`). Use:
 
 ```bash
-sudo ./scripts/upgrade-npm.sh
+sudo ./upgrade-npm.sh
 ```
 
 This upgrades npm globally as root, fixes `yaytd` ownership under `/opt/yaytd`, and runs `npm ci` as a smoke test.

@@ -804,6 +804,9 @@ step_deploy() {
     --exclude data \
     "${SOURCE_DIR}/" "${APP_DIR}/"
 
+  chmod +x "${APP_DIR}/install.sh" "${APP_DIR}/repair-db.sh" "${APP_DIR}/upgrade-npm.sh" 2>/dev/null || true
+  chmod +x "${APP_DIR}"/scripts/*.sh 2>/dev/null || true
+
   ensure_app_dir_owned
   verify_package_lock "${SOURCE_DIR}"
 
@@ -819,7 +822,7 @@ step_database() {
   # shellcheck source=lib-db.sh
   . "$(cd "$(dirname "$0")" && pwd)/lib-db.sh"
   if ! ensure_db_credentials_synced "${APP_DIR}"; then
-    die "Database credentials invalid. Run: sudo ${SOURCE_DIR}/scripts/repair-db-auth.sh --auto"
+    die "Database credentials invalid. Run: sudo ${APP_DIR}/repair-db.sh --auto  (or: sudo bash ${SOURCE_DIR}/scripts/repair-db-auth.sh --auto)"
   fi
   cd "${APP_DIR}"
   run_as_app_user npm run db:migrate
