@@ -102,16 +102,17 @@ Do **not** run bare `npx prisma` before `npm ci` — it may download the wrong P
 The installer previously rotated the PostgreSQL password but kept the old password in `.env`. Pull the latest installer, then either:
 
 ```bash
-# Align Postgres with the password already in /opt/yaytd/.env
-sudo ./scripts/repair-db-auth.sh
+# Recommended: test .env, then fix from .install-secrets if needed
+sudo ./scripts/repair-db-auth.sh --auto
 sudo -u yaytd env HOME=/opt/yaytd NPM_CONFIG_CACHE=/opt/yaytd/.cache/npm npm run db:migrate --prefix /opt/yaytd
+sudo systemctl restart yaytd yaytd-worker
 ```
 
-Or use the password from the last `.install-secrets` (if `.env` is wrong):
+Or force password from `.install-secrets` (after a failed install that rotated secrets):
 
 ```bash
-sudo grep database_password /opt/yaytd/.install-secrets
-# Update DATABASE_URL in /opt/yaytd/.env, then run repair-db-auth.sh
+sudo ./scripts/repair-db-auth.sh --from-secrets
+sudo -u yaytd env HOME=/opt/yaytd NPM_CONFIG_CACHE=/opt/yaytd/.cache/npm npm run db:migrate --prefix /opt/yaytd
 ```
 
 Redeploy without prompts:

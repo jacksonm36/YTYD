@@ -789,6 +789,10 @@ step_env() {
     ok "Wrote ${APP_DIR}/.env (random AUTH_SECRET + DOWNLOAD_TOKEN_SECRET)"
   fi
   ok "Wrote ${APP_DIR}/.install-secrets (DB + admin passwords)"
+
+  # shellcheck source=lib-db.sh
+  . "$(cd "$(dirname "$0")" && pwd)/lib-db.sh"
+  ensure_db_credentials_synced "${APP_DIR}" || warn "Database login check failed — will retry before migrate"
 }
 
 step_deploy() {
@@ -812,6 +816,11 @@ step_deploy() {
 
 step_database() {
   bold "==> [6/8] Database migrations and admin seed"
+  # shellcheck source=lib-db.sh
+  . "$(cd "$(dirname "$0")" && pwd)/lib-db.sh"
+  if ! ensure_db_credentials_synced "${APP_DIR}"; then
+    die "Database credentials invalid. Run: sudo ${SOURCE_DIR}/scripts/repair-db-auth.sh --auto"
+  fi
   cd "${APP_DIR}"
   run_as_app_user npm run db:migrate
   ADMIN_DEFAULT_PASSWORD="${ADMIN_PASSWORD}" run_as_app_user npm run db:seed-admin
