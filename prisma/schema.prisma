@@ -1,0 +1,131 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  username      String?   @unique
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  role          String    @default("user")
+  accountStatus String    @default("approved")
+  tokenVersion  Int       @default(0)
+  locale        String    @default("hu")
+  termsAcceptedAt DateTime?
+  accounts      Account[]
+  sessions      Session[]
+  downloadJobs  DownloadJob[]
+  rateLimitEvents RateLimitEvent[]
+  loginEvents     LoginEvent[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model SiteConfig {
+  id          String   @id @default("default")
+  inviteToken String   @unique
+  updatedAt   DateTime @updatedAt
+}
+
+model LoginEvent {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  loginId     String?
+  success     Boolean
+  ipAddress   String
+  ipHash      String
+  userAgent   String?
+  countryCode String?
+  countryName String?
+  region      String?
+  city        String?
+  latitude    Float?
+  longitude   Float?
+  timezone    String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([ipHash, createdAt])
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+}
+
+model DownloadJob {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  url          String
+  formatId     String?
+  type         String   @default("video")
+  title        String?
+  formatLabel  String?
+  status       String   @default("queued")
+  phase        String   @default("queued")
+  progress     Int      @default(0)
+  downloadProgress Int  @default(0)
+  convertProgress  Int  @default(0)
+  errorCode    String?
+  completedAt  DateTime?
+  filePath     String?
+  fileName     String?
+  fileSize     BigInt?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([expiresAt])
+}
+
+model RateLimitEvent {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ipHash    String?
+  action    String
+  createdAt DateTime @default(now())
+
+  @@index([userId, action, createdAt])
+  @@index([ipHash, action, createdAt])
+}

@@ -1,0 +1,30 @@
+[Unit]
+Description=YAYTD — Yet Another YouTube Downloader (Next.js)
+Documentation=file:///opt/yaytd/README.md
+After=network-online.target postgresql.service redis-server.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=yaytd
+Group=yaytd
+WorkingDirectory=/opt/yaytd
+EnvironmentFile=/opt/yaytd/.env
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=HOSTNAME=127.0.0.1
+
+ExecStart=/usr/bin/npm run start:prod
+
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=120
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/yaytd /opt/yaytd
+
+[Install]
+WantedBy=multi-user.target

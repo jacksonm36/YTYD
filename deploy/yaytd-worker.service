@@ -1,0 +1,26 @@
+[Unit]
+Description=YAYTD — download worker (Redis / BullMQ / yt-dlp)
+After=network-online.target redis-server.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=yaytd
+Group=yaytd
+WorkingDirectory=/opt/yaytd
+EnvironmentFile=/opt/yaytd/.env
+Environment=NODE_ENV=production
+
+ExecStart=/usr/bin/npm run worker
+
+Restart=on-failure
+RestartSec=10
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/yaytd /opt/yaytd /tmp
+
+[Install]
+WantedBy=multi-user.target
