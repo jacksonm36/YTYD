@@ -7,6 +7,9 @@ SOURCE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SYSTEM_USER="${YAYTD_USER:-yaytd}"
 DATA_DIR="${YAYTD_DATA_DIR:-/var/lib/yaytd/downloads}"
 
+# shellcheck source=lib-app-user.sh
+. "$(cd "$(dirname "$0")" && pwd)/lib-app-user.sh"
+
 if [[ "$(id -u)" -ne 0 ]]; then
   echo "Run as root: sudo ./scripts/deploy-native.sh"
   exit 1
@@ -22,13 +25,13 @@ rsync -a --delete \
   --exclude node_modules --exclude .next --exclude .git \
   "${SOURCE_DIR}/" "${APP_DIR}/"
 cp "${SOURCE_DIR}/.env" "${APP_DIR}/.env"
-chown "${SYSTEM_USER}:${SYSTEM_USER}" "${APP_DIR}/.env"
 chmod 600 "${APP_DIR}/.env"
 
 cd "${APP_DIR}"
-sudo -u "${SYSTEM_USER}" npm ci
-sudo -u "${SYSTEM_USER}" npm run build
-chown -R "${SYSTEM_USER}:${SYSTEM_USER}" "${APP_DIR}" "${DATA_DIR}"
+ensure_app_dir_owned
+run_as_app_user npm ci
+run_as_app_user npm run build
+ensure_app_dir_owned
 
 cp "${APP_DIR}/deploy/yaytd.service" /etc/systemd/system/
 cp "${APP_DIR}/deploy/yaytd-worker.service" /etc/systemd/system/

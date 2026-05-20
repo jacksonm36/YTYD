@@ -49,23 +49,8 @@ err() { printf '\033[31m✗\033[0m %s\n' "$*" >&2; }
 
 die() { err "$*"; exit 1; }
 
-# npm as SYSTEM_USER: rsync leaves root-owned files; npm cache must be writable
-ensure_app_dir_owned() {
-  mkdir -p "${APP_DIR}/.cache/npm"
-  if [[ -e "${APP_DIR}/.npm" ]]; then
-    chown -R "${SYSTEM_USER}:${SYSTEM_USER}" "${APP_DIR}/.npm" 2>/dev/null || true
-  fi
-  chown -R "${SYSTEM_USER}:${SYSTEM_USER}" "${APP_DIR}/.cache" 2>/dev/null || true
-  chown -R "${SYSTEM_USER}:${SYSTEM_USER}" "${APP_DIR}"
-}
-
-run_as_app_user() {
-  ensure_app_dir_owned
-  sudo -u "${SYSTEM_USER}" env \
-    HOME="${APP_DIR}" \
-    NPM_CONFIG_CACHE="${APP_DIR}/.cache/npm" \
-    "$@"
-}
+# shellcheck source=lib-app-user.sh
+. "$(cd "$(dirname "$0")" && pwd)/lib-app-user.sh"
 
 # Cryptographically random secret (hex, URL/DB-safe)
 rand_hex() {
