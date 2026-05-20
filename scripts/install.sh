@@ -19,7 +19,7 @@ set -euo pipefail
 # Defaults
 # ---------------------------------------------------------------------------
 SOURCE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-DEFAULT_DOMAIN="${YAYTD_DOMAIN:-letolto.gamedns.hu}"
+DEFAULT_DOMAIN="${YAYTD_DOMAIN:-yaytd.example.com}"
 DEFAULT_APP_DIR="${YAYTD_APP_DIR:-/opt/yaytd}"
 DEFAULT_DATA_DIR="${YAYTD_DATA_DIR:-/var/lib/yaytd/downloads}"
 DEFAULT_USER="${YAYTD_USER:-yaytd}"

@@ -31,7 +31,7 @@ The wizard installs Node 22, PostgreSQL, Redis, ffmpeg, yt-dlp, builds the app, 
 git clone https://github.com/jacksonm36/YTYD.git
 cd YTYD
 chmod +x install.sh
-sudo YAYTD_DOMAIN=letolto.gamedns.hu ./install.sh --non-interactive
+sudo YAYTD_DOMAIN=yaytd.example.com ./install.sh --non-interactive
 ```
 
 All secrets (**AUTH_SECRET**, **DOWNLOAD_TOKEN_SECRET**, DB password, admin password, invite token) are generated randomly.

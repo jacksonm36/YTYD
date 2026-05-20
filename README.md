@@ -47,7 +47,7 @@ The wizard asks for (press Enter for defaults):
 
 | Setting | Default |
 |---------|---------|
-| Public domain | `letolto.gamedns.hu` |
+| Public domain | `yaytd.example.com` (your real hostname) |
 | HTTPS public URL | `https://<domain>` |
 | App directory | `/opt/yaytd` |
 | Data directory | `/var/lib/yaytd/downloads` |
@@ -68,7 +68,7 @@ It then runs **everything**: apt packages (Node 22, PostgreSQL, Redis, ffmpeg, y
 sudo ./scripts/install.sh -y
 
 # Fully unattended (secrets auto-generated if omitted)
-sudo YAYTD_DOMAIN=letolto.gamedns.hu \
+sudo YAYTD_DOMAIN=yaytd.example.com \
      ./scripts/install.sh --non-interactive
 ```
 
@@ -80,7 +80,7 @@ Config is saved to `/opt/yaytd/install.conf` for reference.
 
 | Item | Value |
 |------|--------|
-| Public URL | `https://letolto.gamedns.hu` (set in `.env`) |
+| Public URL | `https://<your-domain>` (set in `.env` via install) |
 | Upstream | `http://127.0.0.1:3000` |
 | Admin | `admin` / password in `/opt/yaytd/.install-secrets` — **change after first login** |
 | Invite link | Settings → copy HU/EN registration URL |

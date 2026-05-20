@@ -1,5 +1,5 @@
-/** Canonical production hostname (override with env if needed). */
-export const DEFAULT_PRODUCTION_HOST = "letolto.gamedns.hu";
+/** Placeholder when APP_URL is unset (RFC 2606 example domain — set env in production). */
+export const DEFAULT_PRODUCTION_HOST = "yaytd.example.com";
 
 export const DEFAULT_PRODUCTION_ORIGIN = `https://${DEFAULT_PRODUCTION_HOST}`;
 
