@@ -3,8 +3,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Yet Another YouTube Downloader",
-  description: "YAYTD — self-hosted multi-platform media downloader",
-  description: "Multi-platform video downloader: YouTube, TikTok, Instagram, Facebook, and more",
+  description:
+    "YAYTD — self-hosted multi-platform media downloader (YouTube, TikTok, Instagram, Facebook, and more)",
 };
 
 export default function RootLayout({
