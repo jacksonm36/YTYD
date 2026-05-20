@@ -710,6 +710,11 @@ step_packages() {
     apt-get install -y nodejs
   fi
 
+  # shellcheck source=lib-npm.sh
+  . "$(cd "$(dirname "$0")" && pwd)/lib-npm.sh"
+  upgrade_system_npm
+  ok "System npm $(npm -v) (node $(node -v))"
+
   if apt-cache show yt-dlp &>/dev/null; then
     apt-get install -y yt-dlp
   else
@@ -734,7 +739,10 @@ step_user_dirs() {
     ok "User ${SYSTEM_USER} exists"
   fi
   mkdir -p "${APP_DIR}" "${DATA_DIR}" "${APP_DIR}/data" "${APP_DIR}/.cache/npm"
-  chown -R "${SYSTEM_USER}:${SYSTEM_USER}" "${APP_DIR}" "${DATA_DIR}" 2>/dev/null || true
+  # shellcheck source=lib-npm.sh
+  . "$(cd "$(dirname "$0")" && pwd)/lib-npm.sh"
+  repair_npm_permissions "${APP_DIR}" "${SYSTEM_USER}"
+  chown -R "${SYSTEM_USER}:${SYSTEM_USER}" "${DATA_DIR}" 2>/dev/null || true
 }
 
 step_postgres() {

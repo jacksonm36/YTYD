@@ -121,6 +121,16 @@ git pull
 sudo ./install.sh --skip-packages   # reuses /opt/yaytd/.env when install.conf is missing
 ```
 
+### Upgrade npm to latest (production)
+
+Do **not** run `npm install -g npm` as your login user (EACCES on `/usr/lib/node_modules`). Use:
+
+```bash
+sudo ./scripts/upgrade-npm.sh
+```
+
+This upgrades npm globally as root, fixes `yaytd` ownership under `/opt/yaytd`, and runs `npm ci` as a smoke test.
+
 ## Legal
 
 Users must only download content they are allowed to access. A terms checkbox is required before each download.
