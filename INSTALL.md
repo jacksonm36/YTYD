@@ -102,27 +102,35 @@ Do **not** run bare `npx prisma` before `npm ci` — it may download the wrong P
 The installer previously rotated the PostgreSQL password but kept the old password in `.env`. Pull the latest installer, then either:
 
 ```bash
-cd ~/YTYD && git pull   # need repair-db.sh + scripts/repair-db-auth.sh on disk
+cd ~/YTYD && git pull
 
-# Recommended: test .env, then fix from .install-secrets if needed
+# One-shot: repair DB + migrate + seed + systemd (after a partial install)
+sudo ./finish-install.sh
+
+# Or step by step:
 sudo ./repair-db.sh --auto
-# or: sudo bash ./scripts/repair-db-auth.sh --auto
-sudo -u yaytd env HOME=/opt/yaytd NPM_CONFIG_CACHE=/opt/yaytd/.cache/npm npm run db:migrate --prefix /opt/yaytd
-sudo systemctl restart yaytd yaytd-worker
+cd /opt/yaytd && sudo -u yaytd npm run db:migrate
+cd /opt/yaytd && sudo -u yaytd npm run db:seed-admin
+sudo ./install.sh --services-only
 ```
 
-Or force password from `.install-secrets` (after a failed install that rotated secrets):
+Scripts live in the repo clone (`~/YTYD`). Wrappers use `bash` (not `./`) so they work even without the execute bit:
 
 ```bash
-sudo ./repair-db.sh --from-secrets
-sudo -u yaytd env HOME=/opt/yaytd NPM_CONFIG_CACHE=/opt/yaytd/.cache/npm npm run db:migrate --prefix /opt/yaytd
+sudo bash ./scripts/repair-db-auth.sh --auto
+```
+
+Or from `/opt/yaytd` after deploy:
+
+```bash
+sudo /opt/yaytd/repair-db.sh --auto
 ```
 
 Redeploy without prompts:
 
 ```bash
 git pull
-sudo ./install.sh --skip-packages   # reuses /opt/yaytd/.env when install.conf is missing
+sudo ./install.sh --skip-packages
 ```
 
 ### Upgrade npm to latest (production)

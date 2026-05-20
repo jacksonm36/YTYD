@@ -14,21 +14,23 @@ run_as_app_user() {
   ensure_app_dir_owned
   local app_dir="${APP_DIR}"
   local user="${SYSTEM_USER}"
+  local lib_dir
+  lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   sudo -u "${user}" bash -c '
     set -euo pipefail
-    app_dir="$1"
-    shift
+    lib_dir="$1"
+    app_dir="$2"
+    shift 2
     export HOME="${app_dir}"
     export NPM_CONFIG_CACHE="${app_dir}/.cache/npm"
+    # shellcheck source=lib-env.sh
+    . "${lib_dir}/lib-env.sh"
     if [[ -f "${app_dir}/.env" ]]; then
-      set -a
-      # shellcheck disable=SC1090
-      source "${app_dir}/.env"
-      set +a
+      load_env_exports "${app_dir}/.env"
     fi
     cd "${app_dir}"
     exec "$@"
-  ' _ "${app_dir}" "$@"
+  ' _ "${lib_dir}" "${app_dir}" "$@"
 }
 
 # Fail early when package-lock.json predates package.json (common after partial git pull).

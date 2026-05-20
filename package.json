@@ -17,9 +17,9 @@
     "start:prod": "prisma migrate deploy && next start",
     "lint": "next lint",
     "postinstall": "prisma generate",
-    "db:migrate": "prisma migrate deploy",
-    "db:push": "prisma db push",
-    "db:seed-admin": "npx --yes tsx scripts/seed-admin.ts",
+    "db:migrate": "node --env-file=.env ./node_modules/prisma/build/index.js migrate deploy",
+    "db:push": "node --env-file=.env ./node_modules/prisma/build/index.js db push",
+    "db:seed-admin": "node --env-file=.env --import tsx scripts/seed-admin.ts",
     "db:rehash-check": "npx --yes tsx scripts/rehash-passwords.ts",
     "geoip:update": "npx --yes tsx scripts/update-geolite.ts",
     "install:native": "bash scripts/install.sh"

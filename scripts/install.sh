@@ -36,6 +36,7 @@ INTERACTIVE=1
 ASSUME_YES=0
 SKIP_PACKAGES=0
 SKIP_BUILD=0
+SERVICES_ONLY=0
 INSTALL_NGINX=""
 REDEPLOY_MODE=0
 PRESERVE_EXISTING_SECRETS=0
@@ -98,6 +99,7 @@ Options:
   --non-interactive      No prompts (optional YAYTD_* overrides; secrets auto-generated)
   --skip-packages        Skip apt / Node / yt-dlp installation
   --skip-build           Skip npm ci / build (config + systemd only)
+  --services-only        Skip packages/build/DB — install systemd units only (redeploy helper)
   -h, --help             Show this help
 
 Examples:
@@ -112,6 +114,7 @@ parse_args() {
       --non-interactive) INTERACTIVE=0; ASSUME_YES=1 ;;
       --skip-packages) SKIP_PACKAGES=1 ;;
       --skip-build) SKIP_BUILD=1 ;;
+      --services-only) SERVICES_ONLY=1; SKIP_PACKAGES=1; SKIP_BUILD=1 ;;
       -h|--help) usage; exit 0 ;;
       *) die "Unknown option: $1 (try --help)" ;;
     esac
@@ -189,30 +192,6 @@ load_install_config() {
   return 0
 }
 
-parse_database_url() {
-  local dburl="$1"
-  [[ -n "${dburl}" && -n "$(command -v node)" ]] || return 1
-  DB_USER="$(node -e "const u=new URL(process.argv[1]); console.log(decodeURIComponent(u.username||''))" "${dburl}")"
-  DB_PASSWORD="$(node -e "const u=new URL(process.argv[1]); console.log(decodeURIComponent(u.password||''))" "${dburl}")"
-  DB_HOST="$(node -e "const u=new URL(process.argv[1]); console.log(u.hostname)" "${dburl}")"
-  DB_PORT="$(node -e "const u=new URL(process.argv[1]); console.log(u.port||'5432')" "${dburl}")"
-  DB_NAME="$(node -e "const u=new URL(process.argv[1]); console.log(decodeURIComponent((u.pathname||'/').slice(1).split('?')[0]||''))" "${dburl}")"
-  [[ -n "${DB_PASSWORD}" ]]
-}
-
-build_database_url() {
-  node -e "
-    const u = new URL('postgresql://127.0.0.1:5432/yaytd');
-    u.username = process.argv[1];
-    u.password = process.argv[2];
-    u.hostname = process.argv[3];
-    u.port = String(process.argv[4]);
-    u.pathname = '/' + process.argv[5];
-    u.searchParams.set('schema', 'public');
-    console.log(u.toString());
-  " "${DB_USER}" "${DB_PASSWORD}" "${DB_HOST}" "${DB_PORT}" "${DB_NAME}"
-}
-
 preserve_env_secrets() {
   local envfile="${APP_DIR}/.env"
   [[ -f "${envfile}" ]] || return 0
@@ -226,7 +205,7 @@ preserve_env_secrets() {
 
   local dburl
   dburl="$(grep -E '^DATABASE_URL=' "${envfile}" | head -1 | cut -d= -f2- | tr -d '"\r' || true)"
-  if parse_database_url "${dburl}"; then
+  if [[ -n "${dburl}" ]] && parse_database_url "${dburl}"; then
     PRESERVE_EXISTING_SECRETS=1
   fi
 
@@ -790,8 +769,6 @@ step_env() {
   fi
   ok "Wrote ${APP_DIR}/.install-secrets (DB + admin passwords)"
 
-  # shellcheck source=lib-db.sh
-  . "$(cd "$(dirname "$0")" && pwd)/lib-db.sh"
   ensure_db_credentials_synced "${APP_DIR}" || warn "Database login check failed — will retry before migrate"
 }
 
@@ -819,10 +796,8 @@ step_deploy() {
 
 step_database() {
   bold "==> [6/8] Database migrations and admin seed"
-  # shellcheck source=lib-db.sh
-  . "$(cd "$(dirname "$0")" && pwd)/lib-db.sh"
   if ! ensure_db_credentials_synced "${APP_DIR}"; then
-    die "Database credentials invalid. Run: sudo ${APP_DIR}/repair-db.sh --auto  (or: sudo bash ${SOURCE_DIR}/scripts/repair-db-auth.sh --auto)"
+    die "Database credentials invalid. Run: sudo ${APP_DIR}/repair-db.sh --auto"
   fi
   cd "${APP_DIR}"
   run_as_app_user npm run db:migrate
@@ -928,6 +903,23 @@ main() {
 
   [[ -z "${INSTALL_NGINX}" ]] && INSTALL_NGINX="${YAYTD_INSTALL_NGINX:-}"
   [[ "${YAYTD_SKIP_PACKAGES:-}" == "1" ]] && SKIP_PACKAGES=1
+
+  # shellcheck source=lib-db.sh
+  . "$(cd "$(dirname "$0")" && pwd)/lib-db.sh"
+
+  if [[ "${SERVICES_ONLY}" -eq 1 ]]; then
+    load_install_config "${DEFAULT_APP_DIR}/install.conf" || true
+    APP_DIR="${APP_DIR:-${DEFAULT_APP_DIR}}"
+    DATA_DIR="${DATA_DIR:-${DEFAULT_DATA_DIR}}"
+    SYSTEM_USER="${SYSTEM_USER:-${DEFAULT_USER}}"
+    APP_PORT="${APP_PORT:-${DEFAULT_PORT}}"
+    INSTALL_SYSTEMD=1
+    preserve_env_secrets
+    bold "==> Services-only mode (${APP_DIR})"
+    step_services
+    print_finish
+    exit 0
+  fi
 
   run_wizard
 

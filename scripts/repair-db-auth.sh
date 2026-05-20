@@ -1,27 +1,33 @@
 #!/usr/bin/env bash
-# Fix P1000: align PostgreSQL with /opt/yaytd/.env (or .install-secrets).
+# Fix Prisma P1000 — align PostgreSQL with /opt/yaytd/.env and .install-secrets.
 set -euo pipefail
 
 APP_DIR="${YAYTD_APP_DIR:-/opt/yaytd}"
-ENV_FILE="${APP_DIR}/.env"
-SECRETS_FILE="${APP_DIR}/.install-secrets"
-MODE="env"
+MODE="auto"
 
 usage() {
-  cat <<EOF
+  cat <<'EOF'
 Fix database authentication (Prisma P1000).
 
-  sudo ./scripts/repair-db-auth.sh              # set Postgres password from .env
-  sudo ./scripts/repair-db-auth.sh --from-secrets   # use .install-secrets, update .env too
-  sudo ./scripts/repair-db-auth.sh --auto         # test .env; if fail, use .install-secrets
+  sudo ./repair-db.sh --auto              Test .env; repair from .install-secrets if needed
+  sudo ./repair-db.sh --from-secrets      Force password from .install-secrets into Postgres + .env
+  sudo ./repair-db.sh --from-env          Force password from .env into PostgreSQL
 
+  sudo ./repair-db.sh --app-dir /opt/yaytd
+
+Run from the git clone (~/YTYD) or from /opt/yaytd after deploy.
 EOF
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --from-secrets) MODE="secrets" ;;
     --auto) MODE="auto" ;;
+    --from-secrets) MODE="secrets" ;;
+    --from-env) MODE="env" ;;
+    --app-dir)
+      APP_DIR="${2:?}"
+      shift
+      ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1"; usage; exit 1 ;;
   esac
@@ -29,56 +35,75 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ "$(id -u)" -ne 0 ]]; then
-  echo "Run as root: sudo ./scripts/repair-db-auth.sh"
+  echo "Run as root: sudo ./repair-db.sh --auto"
   exit 1
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [[ ! -f "${SCRIPT_DIR}/lib-db.sh" ]]; then
+  echo "ERROR: ${SCRIPT_DIR}/lib-db.sh not found."
+  echo "  cd ~/YTYD && git pull origin main"
+  exit 1
+fi
 # shellcheck source=lib-db.sh
 . "${SCRIPT_DIR}/lib-db.sh"
+
+ENV_FILE="${APP_DIR}/.env"
+SECRETS_FILE="${APP_DIR}/.install-secrets"
+
+echo "YAYTD database repair"
+echo "  app dir: ${APP_DIR}"
+echo "  mode:    ${MODE}"
+echo ""
+
+if [[ ! -f "${ENV_FILE}" ]]; then
+  echo "ERROR: ${ENV_FILE} not found."
+  echo "  Run install first, or: sudo ./repair-db.sh --app-dir /opt/yaytd"
+  exit 1
+fi
 
 if [[ "${MODE}" == "auto" ]]; then
   ensure_db_credentials_synced "${APP_DIR}"
   echo ""
-  echo "Next: sudo -u yaytd env HOME=${APP_DIR} NPM_CONFIG_CACHE=${APP_DIR}/.cache/npm npm run db:migrate --prefix ${APP_DIR}"
+  echo "Next:"
+  echo "  cd ${APP_DIR} && sudo -u yaytd npm run db:migrate"
+  echo "  cd ${APP_DIR} && sudo -u yaytd npm run db:seed-admin"
   exit 0
 fi
 
 if ! command -v node >/dev/null 2>&1; then
-  echo "Node.js is required"
+  echo "ERROR: Node.js is required"
   exit 1
 fi
 
+read_database_url_from_env "${ENV_FILE}" || {
+  echo "ERROR: could not parse DATABASE_URL in ${ENV_FILE}"
+  exit 1
+}
+
 if [[ "${MODE}" == "secrets" ]]; then
-  [[ -f "${SECRETS_FILE}" ]] || { echo "Missing ${SECRETS_FILE}"; exit 1; }
-  [[ -f "${ENV_FILE}" ]] || { echo "Missing ${ENV_FILE}"; exit 1; }
-  read_database_url_from_env "${ENV_FILE}"
+  [[ -f "${SECRETS_FILE}" ]] || { echo "ERROR: missing ${SECRETS_FILE}"; exit 1; }
   DB_PASSWORD="$(read_password_from_secrets "${SECRETS_FILE}")"
-  [[ -n "${DB_PASSWORD}" ]] || { echo "database_password empty in secrets"; exit 1; }
-  if declare -f build_database_url >/dev/null 2>&1; then
-    DATABASE_URL="$(build_database_url)"
-  else
-    DATABASE_URL="$(node -e "const u=new URL(process.argv[1]); u.password=process.argv[2]; console.log(u.toString())" "${DATABASE_URL}" "${DB_PASSWORD}")"
-  fi
-  echo "Applying password from ${SECRETS_FILE} to PostgreSQL role ${DB_USER}"
+  [[ -n "${DB_PASSWORD}" ]] || { echo "ERROR: database_password empty in secrets"; exit 1; }
+  DATABASE_URL="$(build_database_url)"
+  echo "Applying password from ${SECRETS_FILE} to role ${DB_USER}"
   apply_postgres_password "${DB_USER}" "${DB_PASSWORD}"
   write_database_url_to_env "${ENV_FILE}" "${DATABASE_URL}"
+  sync_secrets_database_password "${SECRETS_FILE}" "${DB_PASSWORD}"
 else
-  [[ -f "${ENV_FILE}" ]] || { echo "Missing ${ENV_FILE}"; exit 1; }
-  read_database_url_from_env "${ENV_FILE}"
-  echo "Applying PostgreSQL password for role ${DB_USER} from ${ENV_FILE}"
+  echo "Applying password from ${ENV_FILE} to role ${DB_USER}"
   apply_postgres_password "${DB_USER}" "${DB_PASSWORD}"
   if [[ -f "${SECRETS_FILE}" ]]; then
-    sed -i "s/^database_password=.*/database_password=\"${DB_PASSWORD}\"/" "${SECRETS_FILE}" 2>/dev/null || true
+    sync_secrets_database_password "${SECRETS_FILE}" "${DB_PASSWORD}"
   fi
 fi
 
 if test_postgres_login "${DB_USER}" "${DB_PASSWORD}" "${DB_HOST}" "${DB_PORT}" "${DB_NAME}"; then
   echo "OK — database login works"
 else
-  echo "FAILED — try: sudo ./scripts/repair-db-auth.sh --from-secrets"
+  echo "FAILED — try: sudo ./repair-db.sh --from-secrets"
   exit 1
 fi
 
 echo ""
-echo "Run: sudo -u yaytd env HOME=${APP_DIR} NPM_CONFIG_CACHE=${APP_DIR}/.cache/npm npm run db:migrate --prefix ${APP_DIR}"
+echo "Next: cd ${APP_DIR} && sudo -u yaytd npm run db:migrate && sudo -u yaytd npm run db:seed-admin"
