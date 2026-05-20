@@ -93,7 +93,9 @@ cd ~/YTYD && git pull origin main
 sudo ./scripts/deploy-native.sh
 ```
 
-Do **not** run bare `npx prisma` before `npm ci` — it may download Prisma 7. Use `npm run db:migrate` after dependencies are installed.
+Do **not** run bare `npx prisma` before `npm ci` — it may download the wrong Prisma version. Use `npm run db:migrate` after dependencies are installed.
+
+**Requirements:** Node.js **20.19+** (22.x recommended), Prisma ORM **7** with PostgreSQL driver adapter.
 
 ## Legal
 

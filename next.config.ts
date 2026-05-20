@@ -11,6 +11,8 @@ const nextConfig: NextConfig = {
     "bullmq",
     "ioredis",
     "@prisma/client",
+    "@prisma/adapter-pg",
+    "pg",
     "bcryptjs",
     "argon2",
     "@maxmind/geoip2-node",

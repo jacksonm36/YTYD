@@ -624,7 +624,18 @@ step_packages() {
     curl ca-certificates gnupg postgresql postgresql-contrib \
     ffmpeg python3 python3-pip redis-server build-essential rsync openssl
 
-  if ! command -v node >/dev/null 2>&1 || [[ "$(node -v | cut -d. -f1 | tr -d v)" -lt 20 ]]; then
+  if ! command -v node >/dev/null 2>&1; then
+    need_node=1
+  else
+    local node_major node_minor
+    node_major="$(node -v | sed 's/^v//' | cut -d. -f1)"
+    node_minor="$(node -v | sed 's/^v//' | cut -d. -f2)"
+    need_node=0
+    if [[ "${node_major}" -lt 20 ]] || [[ "${node_major}" -eq 20 && "${node_minor}" -lt 19 ]]; then
+      need_node=1
+    fi
+  fi
+  if [[ "${need_node}" -eq 1 ]]; then
     curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
     apt-get install -y nodejs
   fi

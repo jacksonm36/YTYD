@@ -38,7 +38,7 @@ function validateHost(request: NextRequest): NextResponse | null {
   return null;
 }
 
-export default async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const hostBlock = validateHost(request);
