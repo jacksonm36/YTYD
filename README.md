@@ -107,9 +107,21 @@ Set in `.env`: `TRUST_PROXY=true`, all `*_URL` vars to your public HTTPS URL.
 
 ## Development
 
+**Automated (from clone, uses PostgreSQL + Redis on this machine):**
+
+```bash
+sudo YAYTD_APP_DIR="$PWD" YAYTD_DEV_INSTALL=1 ./scripts/install.sh -y
+npm run dev:all   # web + worker
+```
+
+This writes `.env`, `.env.local` (localhost + `/tmp/yaytd-downloads`), and keeps files owned by your user (not `root` / `yaytd` only).
+
+**Manual:**
+
 ```bash
 cp .env.example .env
-# Edit DATABASE_URL, AUTH_SECRET, REDIS_URL
+cp .env.local.example .env.local
+# Edit DATABASE_URL, AUTH_SECRET, REDIS_URL in .env
 npm install
 npx prisma migrate deploy
 npm run db:seed-admin

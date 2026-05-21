@@ -37,6 +37,10 @@ else
   exit 1
 fi
 chmod 600 "${APP_DIR}/.env"
+# shellcheck source=lib-install-env.sh
+. "$(cd "$(dirname "$0")" && pwd)/lib-install-env.sh"
+detect_install_mode
+finalize_env_file_permissions
 
 verify_package_lock "${SOURCE_DIR}"
 

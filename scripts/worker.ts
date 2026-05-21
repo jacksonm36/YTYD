@@ -2,6 +2,7 @@
  * Redis/BullMQ worker — run alongside the Next.js app.
  * Usage: npm run worker  (requires REDIS_URL in .env)
  */
+import "../src/lib/load-env";
 import { Worker } from "bullmq";
 import { config } from "../src/lib/config";
 import {

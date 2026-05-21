@@ -2,12 +2,17 @@
 # Requires: APP_DIR, SYSTEM_USER
 
 ensure_app_dir_owned() {
+  local owner="${RUN_AS_USER:-${SYSTEM_USER}}"
   mkdir -p "${APP_DIR}/.cache/npm"
   if [[ -e "${APP_DIR}/.npm" ]]; then
-    chown -R "${SYSTEM_USER}:${SYSTEM_USER}" "${APP_DIR}/.npm" 2>/dev/null || true
+    chown -R "${owner}:${owner}" "${APP_DIR}/.npm" 2>/dev/null || true
   fi
-  chown -R "${SYSTEM_USER}:${SYSTEM_USER}" "${APP_DIR}/.cache" 2>/dev/null || true
-  chown -R "${SYSTEM_USER}:${SYSTEM_USER}" "${APP_DIR}"
+  chown -R "${owner}:${owner}" "${APP_DIR}/.cache" 2>/dev/null || true
+  if [[ "${DEV_INSTALL:-0}" == "1" || "${APP_DIR}" != /opt/* ]]; then
+    chown -R "${owner}:${owner}" "${APP_DIR}" 2>/dev/null || true
+  else
+    chown -R "${SYSTEM_USER}:${SYSTEM_USER}" "${APP_DIR}" 2>/dev/null || true
+  fi
 }
 
 # Use scripts under APP_DIR (readable by yaytd), not the root's home clone path.
@@ -23,7 +28,7 @@ resolve_script_lib_dir() {
 run_as_app_user() {
   ensure_app_dir_owned
   local app_dir="${APP_DIR}"
-  local user="${SYSTEM_USER}"
+  local user="${RUN_AS_USER:-${SYSTEM_USER}}"
   local lib_dir
   lib_dir="$(resolve_script_lib_dir "${app_dir}")"
   sudo -u "${user}" bash -c '
@@ -41,6 +46,9 @@ run_as_app_user() {
     . "${lib_dir}/lib-env.sh"
     if [[ -f "${app_dir}/.env" ]]; then
       load_env_exports "${app_dir}/.env"
+    fi
+    if [[ -f "${app_dir}/.env.local" ]]; then
+      load_env_exports "${app_dir}/.env.local"
     fi
     cd "${app_dir}"
     exec "$@"

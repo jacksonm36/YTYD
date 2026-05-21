@@ -15,8 +15,14 @@ fi
 mkdir -p /tmp/yaytd-downloads
 
 if [[ ! -f .env ]]; then
-  echo "Missing .env — copy from .env.example and set DATABASE_URL."
+  echo "Missing .env — copy from .env.example or run:"
+  echo "  sudo YAYTD_APP_DIR=\$PWD YAYTD_DEV_INSTALL=1 ./scripts/install.sh -y"
   exit 1
+fi
+
+if [[ ! -f .env.local && -f .env.local.example ]]; then
+  cp .env.local.example .env.local
+  echo "Created .env.local from .env.local.example (dev overrides)"
 fi
 
 if [[ ! -d node_modules ]]; then

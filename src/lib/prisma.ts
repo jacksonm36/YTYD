@@ -7,14 +7,15 @@ import pg from "pg";
 
 function bootstrapEnv(): void {
   if (process.env.DATABASE_URL) return;
+  const root = process.cwd();
   const candidates = [
     process.env.YAYTD_ENV_FILE,
-    resolve(process.cwd(), ".env"),
+    resolve(root, ".env"),
+    resolve(root, ".env.local"),
   ].filter((p): p is string => Boolean(p));
   for (const path of candidates) {
     if (existsSync(path)) {
-      loadEnv({ path });
-      return;
+      loadEnv({ path, override: path.endsWith(".env.local") });
     }
   }
 }

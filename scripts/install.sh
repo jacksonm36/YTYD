@@ -12,6 +12,7 @@
 #   YAYTD_DB_NAME, YAYTD_DB_USER, YAYTD_DB_HOST, YAYTD_DB_PORT, YAYTD_DB_PASSWORD
 #   YAYTD_REDIS_URL, YAYTD_PORT, YAYTD_ADMIN_PASSWORD, YAYTD_QUEUE_CONCURRENCY
 #   YAYTD_INSTALL_NGINX=yes|no, YAYTD_SKIP_PACKAGES=1, YAYTD_SKIP_BUILD=1
+#   YAYTD_DEV_INSTALL=1          Install in clone dir; .env owned by SUDO_USER; writes .env.local
 #
 set -euo pipefail
 
@@ -759,13 +760,19 @@ step_env() {
   preserve_env_secrets
   write_env_file "${SOURCE_DIR}/.env"
   cp "${SOURCE_DIR}/.env" "${APP_DIR}/.env"
-  chown "${SYSTEM_USER}:${SYSTEM_USER}" "${APP_DIR}/.env"
+  # shellcheck source=lib-install-env.sh
+  . "$(cd "$(dirname "$0")" && pwd)/lib-install-env.sh"
+  finalize_env_file_permissions
+  write_dev_env_local_file
   write_install_secrets_file
   save_install_config
   if [[ "${PRESERVE_EXISTING_SECRETS}" -eq 1 ]]; then
     ok "Wrote ${APP_DIR}/.env (preserved existing secrets)"
   else
     ok "Wrote ${APP_DIR}/.env (random AUTH_SECRET + DOWNLOAD_TOKEN_SECRET)"
+  fi
+  if [[ "${DEV_INSTALL:-0}" == "1" ]]; then
+    ok "Wrote .env.local (dev overrides: localhost, /tmp/yaytd-downloads)"
   fi
   ok "Wrote ${APP_DIR}/.install-secrets (DB + admin passwords)"
 
@@ -829,7 +836,13 @@ step_geoip() {
 
 step_services() {
   bold "==> [8/8] Services"
-  chown -R "${SYSTEM_USER}:${SYSTEM_USER}" "${APP_DIR}" "${DATA_DIR}"
+  chown -R "${SYSTEM_USER}:${SYSTEM_USER}" "${DATA_DIR}" 2>/dev/null || true
+  if [[ "${DEV_INSTALL:-0}" == "1" ]]; then
+    chown -R "${ENV_FILE_OWNER}:${ENV_FILE_OWNER}" "${APP_DIR}" 2>/dev/null || true
+    dim "Skipped systemd (development install — use: npm run dev:all)"
+  else
+    chown -R "${SYSTEM_USER}:${SYSTEM_USER}" "${APP_DIR}" 2>/dev/null || true
+  fi
 
   if [[ "${INSTALL_SYSTEMD}" -eq 1 ]]; then
     install_systemd_units
@@ -884,6 +897,11 @@ print_finish() {
   fi
   echo ""
   echo "  Redeploy after git pull: sudo ./scripts/deploy-native.sh"
+  if [[ "${DEV_INSTALL:-0}" == "1" ]]; then
+    echo ""
+    echo "  Local dev:  cd ${APP_DIR} && npm run dev:all"
+    echo "  Open:       http://localhost:${APP_PORT}/hu"
+  fi
   bold "=============================================="
 }
 
@@ -926,6 +944,13 @@ main() {
   fi
 
   run_wizard
+
+  # shellcheck source=lib-install-env.sh
+  . "$(cd "$(dirname "$0")" && pwd)/lib-install-env.sh"
+  detect_install_mode
+  if [[ "${DEV_INSTALL:-0}" == "1" ]]; then
+    dim "Development install: app files owned by ${ENV_FILE_OWNER}; npm runs as ${RUN_AS_USER}"
+  fi
 
   echo ""
   if [[ "${SKIP_PACKAGES}" -eq 0 ]]; then
