@@ -5,9 +5,12 @@ import { getSiteInviteToken } from "@/lib/invites";
 const ADMIN_USERNAME = "admin";
 const ADMIN_EMAIL = "admin@localhost";
 
+/**
+ * Ensure admin user exists.
+ * IMPORTANT: ADMIN_DEFAULT_PASSWORD must be set in production or via install script.
+ * If not set, the admin user is created WITHOUT a password (must be reset via secure mechanism).
+ */
 export async function ensureAdminUser(): Promise<void> {
-  const password = process.env.ADMIN_DEFAULT_PASSWORD ?? "admin";
-
   const existing = await prisma.user.findFirst({
     where: {
       OR: [{ username: ADMIN_USERNAME }, { email: ADMIN_EMAIL }],
@@ -26,6 +29,15 @@ export async function ensureAdminUser(): Promise<void> {
       });
     }
     return;
+  }
+
+  // Require explicit password via environment variable (no fallback default)
+  const password = process.env.ADMIN_DEFAULT_PASSWORD;
+  if (!password) {
+    throw new Error(
+      "ADMIN_DEFAULT_PASSWORD must be set via environment variable. " +
+        "Use install script (scripts/install.sh) or set manually to a strong password."
+    );
   }
 
   const passwordHash = await hashPassword(password);

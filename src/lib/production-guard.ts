@@ -11,6 +11,12 @@ export function validateProductionConfig(): void {
     missing.push("AUTH_SECRET (min 32 chars)");
   }
 
+  if (!process.env.ADMIN_DEFAULT_PASSWORD) {
+    missing.push(
+      "ADMIN_DEFAULT_PASSWORD (set via install script or securely)"
+    );
+  }
+
   if (getConfiguredAppUrls().length === 0) {
     missing.push("APP_URL or NEXT_PUBLIC_APP_URL");
   }
@@ -24,6 +30,13 @@ export function validateProductionConfig(): void {
   if (!config.redisUrl) {
     console.warn(
       "[security] REDIS_URL is not set — downloads run in-process without queue isolation."
+    );
+  }
+
+  // Validate ALLOWED_HOSTS in production
+  if (!process.env.ALLOWED_HOSTS && getConfiguredAppUrls().length === 0) {
+    console.warn(
+      "[security] ALLOWED_HOSTS should be configured in production for host header validation."
     );
   }
 

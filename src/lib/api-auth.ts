@@ -12,11 +12,38 @@ export { isPublicApiPath };
 
 const MUTATION_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
+/** CSRF token cookie name - must match NextAuth config */
+const CSRF_TOKEN_COOKIE_NAME = config.nodeEnv === "production"
+  ? "__Host-authjs.csrf-token"
+  : "authjs.csrf-token";
+
 /** Require same-origin for public mutation routes (e.g. register). */
 export function requireMutationOrigin(request: Request): void {
   if (!validateRequestOrigin(request)) {
     throw new ApiAuthError("forbidden", 403);
   }
+}
+
+/**
+ * Validate CSRF token from cookie (NextAuth v5 style).
+ * Called for protected API mutations to prevent CSRF attacks.
+ */
+export function validateCsrfToken(request: Request): boolean {
+  const csrfFromCookie = request.headers
+    .get("cookie")
+    ?.split(";")
+    .map((c) => c.trim())
+    .find((c) => c.startsWith(CSRF_TOKEN_COOKIE_NAME))
+    ?.split("=")[1];
+
+  if (!csrfFromCookie) return false;
+
+  // CSRF token must also be in X-CSRF-Token header or form body
+  const csrfFromHeader = request.headers.get("x-csrf-token");
+  if (!csrfFromHeader) return false;
+
+  // Constant-time comparison
+  return csrfFromCookie === csrfFromHeader;
 }
 
 export function validateRequestOrigin(request: Request): boolean {
@@ -73,9 +100,11 @@ async function validateSessionNotRevoked(
 
 /**
  * Require valid JWT session cookie + non-revoked token + same-origin for mutations.
+ * Optionally validate CSRF token for extra protection on sensitive operations.
  */
 export async function requireApiSession(
-  request: Request
+  request: Request,
+  options?: { requireCsrf?: boolean }
 ): Promise<Session> {
   const session = await auth();
 
@@ -90,6 +119,13 @@ export async function requireApiSession(
 
   if (MUTATION_METHODS.has(request.method) && !validateRequestOrigin(request)) {
     throw new ApiAuthError("forbidden", 403);
+  }
+
+  // Additional CSRF protection for sensitive mutations
+  if (options?.requireCsrf && MUTATION_METHODS.has(request.method)) {
+    if (!validateCsrfToken(request)) {
+      throw new ApiAuthError("forbidden", 403);
+    }
   }
 
   return session;

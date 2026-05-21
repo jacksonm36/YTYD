@@ -14,6 +14,17 @@ const protectedPages = ["/dashboard", "/history", "/settings"];
 
 const useSecureCookies = process.env.NODE_ENV === "production";
 
+/**
+ * Whitelist of safe relative paths for redirects.
+ * Prevents open redirect vulnerabilities.
+ */
+function isValidRedirectPath(pathname: string): boolean {
+  if (!pathname || typeof pathname !== "string") return false;
+  if (pathname.startsWith("//") || pathname.startsWith("http")) return false;
+  // Allow only relative paths starting with /
+  return pathname.startsWith("/") && !pathname.includes("\n") && !pathname.includes("\r");
+}
+
 async function isAuthenticated(request: NextRequest): Promise<boolean> {
   const token = await getToken({
     req: request,
@@ -84,7 +95,10 @@ export async function proxy(request: NextRequest) {
 
   if (needsAuth && !(await isAuthenticated(request))) {
     const loginUrl = new URL(`/${locale}/login`, request.url);
-    loginUrl.searchParams.set("callbackUrl", pathname);
+    // Validate callback URL to prevent open redirect
+    if (isValidRedirectPath(pathname)) {
+      loginUrl.searchParams.set("callbackUrl", pathname);
+    }
     return finalize(NextResponse.redirect(loginUrl));
   }
 
@@ -92,5 +106,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_vercel|.*\\..*).*)"],
+  matcher: ["/((?!_vercel|.*\\..*).*)"]
 };
