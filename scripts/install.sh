@@ -487,6 +487,11 @@ RATE_LIMIT_DOWNLOAD_PER_HOUR="5"
 RATE_LIMIT_LOGIN_PER_HOUR="20"
 YTDLP_TIMEOUT_MS="1800000"
 YTDLP_PATH="$([[ -x /usr/local/bin/yt-dlp ]] && echo /usr/local/bin/yt-dlp || echo yt-dlp)"
+YTDLP_JS_RUNTIMES="deno,node"
+YTDLP_REMOTE_COMPONENTS="ejs:github"
+YTDLP_DEFAULT_YOUTUBE_CLIENTS="true"
+# Export browser cookies to this path for YouTube/TikTok (see docs/YTDLP_ANTI_BOT.md)
+# YTDLP_COOKIES_FILE="${DATA_DIR%/downloads}/cookies/cookies.txt"
 
 ADMIN_DEFAULT_PASSWORD="${ADMIN_PASSWORD}"
 EOF
@@ -547,7 +552,7 @@ install_systemd_units() {
 
   cat > /etc/systemd/system/yaytd.service <<EOF
 [Unit]
-Description=Yet Another YouTube Downloader (YAYTD) — Next.js
+Description=Yet Another YouTube Downloader (YAYTD) — web application
 Documentation=file://${APP_DIR}/README.md
 After=network-online.target postgresql.service redis-server.service
 Wants=network-online.target
@@ -638,6 +643,14 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
 
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+    add_header Cross-Origin-Opener-Policy "same-origin" always;
+    add_header Cross-Origin-Resource-Policy "same-origin" always;
+    add_header Cross-Origin-Embedder-Policy "credentialless" always;
+    server_tokens off;
     client_max_body_size 32m;
 
     location / {
@@ -647,6 +660,21 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_hide_header X-Powered-By;
+        proxy_hide_header Server;
+        proxy_hide_header X-Nextjs-Cache;
+        proxy_hide_header X-Nextjs-Prerender;
+        proxy_hide_header X-Nextjs-Stale-Time;
+        proxy_hide_header X-Nextjs-Postponed;
+        proxy_hide_header X-Nextjs-Rewritten-Path;
+        proxy_hide_header X-Nextjs-Rewritten-Query;
+        proxy_hide_header X-Nextjs-Request-Id;
+        proxy_hide_header X-Nextjs-Html-Request-Id;
+        proxy_hide_header X-Nextjs-Deployment-Id;
+        proxy_hide_header X-Nextjs-Action-Not-Found;
+        proxy_hide_header X-Matched-Path;
+        proxy_hide_header X-Vercel-Id;
+        proxy_hide_header X-Vercel-Cache;
         proxy_read_timeout 3600s;
         proxy_send_timeout 3600s;
     }
@@ -698,8 +726,10 @@ step_packages() {
   if apt-cache show yt-dlp &>/dev/null; then
     apt-get install -y yt-dlp
   fi
-  # Debian's yt-dlp package is often outdated; install latest to /usr/local/bin
-  pip3 install --break-system-packages --ignore-installed -U yt-dlp 2>/dev/null \
+  # Debian's yt-dlp package is often outdated; install latest + EJS default extra
+  pip3 install --break-system-packages --ignore-installed -U "yt-dlp[default]" 2>/dev/null \
+    || pip3 install -U "yt-dlp[default]" 2>/dev/null \
+    || pip3 install --break-system-packages --ignore-installed -U yt-dlp 2>/dev/null \
     || pip3 install -U yt-dlp 2>/dev/null || true
   if [[ -x /usr/local/bin/yt-dlp ]]; then
     ok "yt-dlp $(/usr/local/bin/yt-dlp --version) → /usr/local/bin/yt-dlp"
@@ -707,6 +737,18 @@ step_packages() {
     ok "yt-dlp $(yt-dlp --version)"
   else
     warn "yt-dlp not found — video downloads will fail"
+  fi
+
+  # Deno — YouTube JS challenges (https://github.com/yt-dlp/yt-dlp/wiki/EJS)
+  if ! command -v deno >/dev/null 2>&1; then
+    apt-get install -y unzip 2>/dev/null || true
+    if curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sh -s v2.1.4 2>/dev/null; then
+      ok "Deno $(deno --version 2>/dev/null | head -1) → /usr/local/bin/deno"
+    else
+      warn "Deno not installed — YouTube may hit bot checks; see docs/YTDLP_ANTI_BOT.md"
+    fi
+  else
+    ok "Deno $(deno --version | head -1)"
   fi
 
   if [[ "${INSTALL_NGINX}" == "yes" ]] && ! command -v nginx >/dev/null 2>&1; then
@@ -726,7 +768,9 @@ step_user_dirs() {
   else
     ok "User ${SYSTEM_USER} exists"
   fi
-  mkdir -p "${APP_DIR}" "${DATA_DIR}" "${APP_DIR}/data" "${APP_DIR}/.cache/npm"
+  local cookies_dir="${DATA_DIR%/downloads}/cookies"
+  mkdir -p "${APP_DIR}" "${DATA_DIR}" "${cookies_dir}" "${APP_DIR}/data" "${APP_DIR}/.cache/npm"
+  chmod 750 "${cookies_dir}" 2>/dev/null || true
   # shellcheck source=lib-npm.sh
   . "$(cd "$(dirname "$0")" && pwd)/lib-npm.sh"
   repair_npm_permissions "${APP_DIR}" "${SYSTEM_USER}"

@@ -69,7 +69,7 @@
     "overallProgress": "Overall progress",
     "phaseDownloading": "Downloading media…",
     "phaseConverting": "Converting (ffmpeg)…",
-    "phaseMerging": "Merging files…",
+    "phaseMerging": "Merging video + audio (ffmpeg)…",
     "ready": "Preparing save to your device…",
     "failed": "Download failed",
     "termsLabel": "I confirm I have the right to download this content and accept the terms of use.",
@@ -128,7 +128,17 @@
     "pendingLoading": "Loading…",
     "pendingEmpty": "No accounts awaiting approval.",
     "approveUser": "Approve",
-    "rejectUser": "Reject"
+    "rejectUser": "Reject",
+    "serverMonitor": "Server activity"
+  },
+  "admin": {
+    "serverMonitorHint": "Live download worker, yt-dlp, and ffmpeg activity. Refreshes every 4 seconds.",
+    "activeJobs": "Active jobs",
+    "noActiveJobs": "No queued or running jobs.",
+    "serverLogs": "Server log",
+    "noLogs": "No log entries yet.",
+    "filterLogs": "Show logs for this job",
+    "clearLogFilter": "Show all logs"
   },
   "errors": {
     "invalidUrl": "Invalid URL. Only https:// links are allowed.",
@@ -143,7 +153,7 @@
     "termsRequired": "You must accept the terms before downloading.",
     "generic": "An unexpected error occurred",
     "ytdlpNotFound": "yt-dlp is not available on the server. Install it and set YTDLP_PATH.",
-    "ytdlpBotCheck": "YouTube blocked automated access. Update yt-dlp on the server or configure cookies (see project docs).",
+    "ytdlpBotCheck": "The site blocked automated access. Install Deno on the server, keep yt-dlp updated, and add browser cookies — see docs/YTDLP_ANTI_BOT.md.",
     "ytdlpVideoUnavailable": "This video is unavailable, private, or restricted in your region.",
     "ytdlpExtractFailed": "Could not read video metadata. Try another link or update yt-dlp on the server.",
     "downloadDirUnavailable": "Download folder is not writable on the server. Check TEMP_DOWNLOAD_DIR permissions.",

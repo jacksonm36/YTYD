@@ -6,6 +6,7 @@ import { routing } from "@/i18n/routing";
 import { isPublicApiPath } from "@/lib/public-api";
 import { getAllowedHosts } from "@/lib/app-origin";
 import { corsPreflightResponse, applyCorsHeaders } from "@/lib/cors";
+import { stripResponseFingerprint } from "@/lib/strip-response-fingerprint";
 
 const intlMiddleware = createIntlMiddleware(routing);
 
@@ -38,11 +39,19 @@ function validateHost(request: NextRequest): NextResponse | null {
   return null;
 }
 
+function finalize(response: NextResponse): NextResponse {
+  return stripResponseFingerprint(response);
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const hostBlock = validateHost(request);
-  if (hostBlock) return hostBlock;
+  if (hostBlock) return finalize(hostBlock);
+
+  if (pathname.startsWith("/_next")) {
+    return finalize(NextResponse.next());
+  }
 
   if (pathname.startsWith("/api")) {
     const preflight = corsPreflightResponse(request);
@@ -58,11 +67,11 @@ export async function proxy(request: NextRequest) {
       response = NextResponse.next();
     }
 
-    return applyCorsHeaders(request, response) as NextResponse;
+    return finalize(applyCorsHeaders(request, response) as NextResponse);
   }
 
   if (pathname === "/" || pathname === "") {
-    return NextResponse.redirect(new URL("/hu", request.url));
+    return finalize(NextResponse.redirect(new URL("/hu", request.url)));
   }
 
   const localeMatch = pathname.match(/^\/(hu|en)(\/|$)/);
@@ -76,12 +85,12 @@ export async function proxy(request: NextRequest) {
   if (needsAuth && !(await isAuthenticated(request))) {
     const loginUrl = new URL(`/${locale}/login`, request.url);
     loginUrl.searchParams.set("callbackUrl", pathname);
-    return NextResponse.redirect(loginUrl);
+    return finalize(NextResponse.redirect(loginUrl));
   }
 
-  return intlMiddleware(request);
+  return finalize(intlMiddleware(request));
 }
 
 export const config = {
-  matcher: ["/((?!_next|_vercel|.*\\..*).*)"],
+  matcher: ["/((?!_vercel|.*\\..*).*)"],
 };

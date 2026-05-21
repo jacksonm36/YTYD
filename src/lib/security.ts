@@ -80,6 +80,17 @@ export async function validatePublicUrl(urlString: string): Promise<URL> {
     throw new Error("invalidUrl");
   }
 
+  // Single-video download only (playlist/radio params make yt-dlp much slower).
+  if (
+    hostname.includes("youtube.com") ||
+    hostname === "youtu.be" ||
+    hostname.endsWith(".youtube.com")
+  ) {
+    parsed.searchParams.delete("list");
+    parsed.searchParams.delete("start_radio");
+    parsed.searchParams.delete("index");
+  }
+
   return parsed;
 }
 

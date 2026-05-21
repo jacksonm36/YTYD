@@ -16,6 +16,7 @@ import {
   type ProgressUpdate,
 } from "@/lib/download-progress";
 import type { ApiErrorCode } from "@/lib/security";
+import { getYtDlpAntiBotArgs } from "@/lib/ytdlp-anti-bot";
 
 export class YtDlpError extends Error {
   readonly code: ApiErrorCode;
@@ -29,13 +30,23 @@ export class YtDlpError extends Error {
 
 function classifyYtDlpStderr(stderr: string): ApiErrorCode {
   const s = stderr.toLowerCase();
-  if (s.includes("sign in to confirm") || s.includes("not a bot")) {
+  if (
+    s.includes("sign in to confirm") ||
+    s.includes("not a bot") ||
+    s.includes("confirm you're not a bot") ||
+    s.includes("cookies are no longer valid") ||
+    s.includes("http error 403") ||
+    (s.includes("403") && s.includes("forbidden")) ||
+    (s.includes("tiktok") &&
+      (s.includes("login") || s.includes("captcha") || s.includes("blocked")))
+  ) {
     return "ytdlpBotCheck";
   }
   if (
     s.includes("video unavailable") ||
     s.includes("private video") ||
-    s.includes("this video is private")
+    s.includes("this video is private") ||
+    s.includes("this content isn't available")
   ) {
     return "ytdlpVideoUnavailable";
   }
@@ -80,13 +91,47 @@ const YTDLP_SAFE_PREFIX = [
   "30",
   "--force-ipv4",
   "--no-config",
-  "--no-progress",
 ] as const;
 
+function getYtDlpPerformanceArgs(includeProgress = false): string[] {
+  const args = [
+    "--retries",
+    "3",
+    "--fragment-retries",
+    "3",
+    "--no-mtime",
+  ];
+  if (includeProgress) args.push("--newline", "--progress");
+  const frags = config.ytdlpConcurrentFragments;
+  if (Number.isFinite(frags) && frags > 0) {
+    args.push("--concurrent-fragments", String(Math.min(16, frags)));
+  }
+  return args;
+}
+
+function ffmpegCopyMergeArgs(): string[] {
+  if (!config.ytdlpFfmpegCopyMerge) return [];
+  return ["--postprocessor-args", "ffmpeg:-c copy -movflags +faststart"];
+}
+
+async function buildYtDlpArgv(
+  userArgs: string[],
+  includeProgress: boolean
+): Promise<string[]> {
+  const perf = getYtDlpPerformanceArgs(includeProgress);
+  const antiBot = await getYtDlpAntiBotArgs();
+  const skip = new Set([...YTDLP_SAFE_PREFIX, ...perf, ...antiBot]);
+  return [
+    ...YTDLP_SAFE_PREFIX,
+    ...perf,
+    ...antiBot,
+    ...userArgs.filter((a) => !skip.has(a)),
+  ];
+}
+
 function runYtDlp(args: string[], timeoutMs = 120000): Promise<string> {
-  const skip = new Set<string>(YTDLP_SAFE_PREFIX);
-  const argv = [...YTDLP_SAFE_PREFIX, ...args.filter((a) => !skip.has(a))];
-  return new Promise((resolve, reject) => {
+  return buildYtDlpArgv(args, false).then((argv) =>
+    new Promise((resolve, reject) => {
     const proc = spawn(config.ytdlpPath, argv, {
       shell: false,
       stdio: ["ignore", "pipe", "pipe"],
@@ -119,7 +164,8 @@ function runYtDlp(args: string[], timeoutMs = 120000): Promise<string> {
         reject(new YtDlpError(classifyYtDlpStderr(detail), detail));
       }
     });
-  });
+    })
+  );
 }
 
 /** Encoded preset ids: yaytd:v:{container}:{height} | yaytd:a:{codec}:{quality} */
@@ -197,7 +243,13 @@ function buildYtDlpFormatArgs(
         : formatId.includes("mov")
           ? "mov"
           : "mp4";
-    return ["-f", formatId, "--merge-output-format", mergeExt];
+    return [
+      "-f",
+      formatId,
+      "--merge-output-format",
+      mergeExt,
+      ...ffmpegCopyMergeArgs(),
+    ];
   }
 
   const parts = formatId.split(":");
@@ -217,6 +269,7 @@ function buildYtDlpFormatArgs(
       mergedVideoSelector(height, container),
       "--merge-output-format",
       container,
+      ...ffmpegCopyMergeArgs(),
     ];
   }
 
@@ -232,6 +285,9 @@ function buildYtDlpFormatArgs(
       const args = ["-f", selector, "-x", "--audio-format", "mp3"];
       if (quality === "best") args.push("--audio-quality", "0");
       return args;
+    }
+    if (codec === "m4a" || codec === "aac") {
+      return ["-f", `ba[ext=${codec}]/bestaudio/b`];
     }
     const ytCodec = codec === "ogg" ? "vorbis" : codec;
     return [
@@ -263,6 +319,49 @@ function estimatePresetSize(
     )
     .sort((a, b) => (b.height ?? 0) - (a.height ?? 0))[0];
   return match?.filesize ?? match?.filesize_approx;
+}
+
+/** Single-file formats (video+audio combined) — no ffmpeg merge step. */
+function pickProgressiveFormats(formats: YtFormat[]): FormatOption[] {
+  const candidates = formats.filter(
+    (f) =>
+      f.format_id &&
+      !f.format_id.includes("+") &&
+      f.vcodec &&
+      f.vcodec !== "none" &&
+      f.acodec &&
+      f.acodec !== "none" &&
+      f.height &&
+      f.height >= 144
+  );
+
+  const byHeight = new Map<number, YtFormat>();
+  for (const f of candidates) {
+    const h = f.height!;
+    const prev = byHeight.get(h);
+    const score =
+      (f.ext === "mp4" ? 10 : 0) +
+      (f.filesize ?? f.filesize_approx ?? 0) / 1e9;
+    const prevScore = prev
+      ? (prev.ext === "mp4" ? 10 : 0) +
+        (prev.filesize ?? prev.filesize_approx ?? 0) / 1e9
+      : -1;
+    if (!prev || score > prevScore) byHeight.set(h, f);
+  }
+
+  return [...byHeight.entries()]
+    .sort((a, b) => b[0] - a[0])
+    .map(([, f]) => {
+      const res = f.resolution ?? `${f.height}p`;
+      return {
+        formatId: f.format_id,
+        type: "video" as const,
+        label: `⚡ ${res} combined (${f.ext ?? "mp4"}) — fastest`,
+        ext: f.ext ?? "mp4",
+        resolution: res,
+        filesize: f.filesize ?? f.filesize_approx,
+      };
+    });
 }
 
 function pickStreamFormats(formats: YtFormat[]): FormatOption[] {
@@ -298,7 +397,7 @@ function pickStreamFormats(formats: YtFormat[]): FormatOption[] {
       return {
         formatId: f.format_id,
         type: "video" as const,
-        label: `${res} stream (${f.ext ?? "mp4"})`,
+        label: `⚡ ${res} stream (${f.ext ?? "mp4"})`,
         ext: f.ext ?? "mp4",
         resolution: res,
         filesize: f.filesize ?? f.filesize_approx,
@@ -354,32 +453,16 @@ function buildVideoPresets(formats: YtFormat[]): FormatOption[] {
     });
   };
 
-  for (const h of POPULAR_VIDEO_HEIGHTS) {
-    for (const container of VIDEO_CONTAINERS) {
-      addVideo(container, h);
-    }
-  }
-
-  for (const h of VIDEO_PRESET_HEIGHTS) {
+  // Fewer merge presets = faster probe UI; merging is slower than progressive/stream.
+  for (const h of [720, 480] as const) {
     addVideo("mp4", h);
   }
-
-  for (const h of [2160, 1440, 1080, 720, 480, 360] as const) {
-    addVideo("mkv", h);
-  }
-
-  for (const h of [2160, 1440, 1080, 720, 480] as const) {
-    addVideo("webm", h);
-  }
-
-  for (const h of [1080, 720] as const) {
-    addVideo("mov", h);
-  }
+  if (maxHeight >= 1080) addVideo("mp4", 1080);
 
   add({
     formatId: "bestvideo+bestaudio/best",
     type: "video",
-    label: "Best quality (auto)",
+    label: "Best quality (auto merge)",
     ext: "mp4",
     resolution: maxHeight ? `${maxHeight}p` : undefined,
   });
@@ -404,33 +487,43 @@ function buildAudioPresets(formats: YtFormat[]): FormatOption[] {
 
   const options: FormatOption[] = [];
 
+  if (best) {
+    options.push({
+      formatId: best.format_id,
+      type: "audio",
+      label: `⚡ Source (${best.ext ?? "m4a"}, no convert)`,
+      ext: best.ext ?? "m4a",
+      filesize: best.filesize ?? best.filesize_approx,
+    });
+  }
+
+  for (const codec of ["m4a", "aac", "opus"] as const) {
+    options.push({
+      formatId: encodeAudioPreset(codec, "best"),
+      type: "audio",
+      label: AUDIO_LABELS[codec],
+      ext: codec,
+      filesize: best?.filesize ?? best?.filesize_approx,
+    });
+  }
+
   for (const { key, label } of MP3_BITRATES) {
     options.push({
       formatId: encodeAudioPreset("mp3", key),
       type: "audio",
-      label: `${AUDIO_LABELS.mp3} (${label})`,
+      label: `${AUDIO_LABELS.mp3} (${label}, converts)`,
       ext: "mp3",
       filesize: key === "best" ? best?.filesize ?? best?.filesize_approx : undefined,
     });
   }
 
-  for (const codec of ["m4a", "aac", "opus", "flac", "ogg", "wav"] as const) {
+  for (const codec of ["flac", "ogg", "wav"] as const) {
     options.push({
       formatId: encodeAudioPreset(codec, "best"),
       type: "audio",
       label: AUDIO_LABELS[codec],
       ext: codec === "ogg" ? "ogg" : codec,
       filesize: best?.filesize ?? best?.filesize_approx,
-    });
-  }
-
-  if (best) {
-    options.push({
-      formatId: best.format_id,
-      type: "audio",
-      label: `Source stream (${best.ext ?? "m4a"}, no convert)`,
-      ext: best.ext ?? "m4a",
-      filesize: best.filesize ?? best.filesize_approx,
     });
   }
 
@@ -442,14 +535,20 @@ function normalizeFormats(info: {
   duration?: number;
 }): FormatOption[] {
   const formats = info.formats ?? [];
-  const videoPresets = buildVideoPresets(formats);
+  const progressive = pickProgressiveFormats(formats);
   const streamFormats = pickStreamFormats(formats);
+  const videoPresets = buildVideoPresets(formats);
   const audioPresets = buildAudioPresets(formats);
 
   const seen = new Set<string>();
   const merged: FormatOption[] = [];
 
-  for (const opt of [...videoPresets, ...streamFormats, ...audioPresets]) {
+  for (const opt of [
+    ...progressive,
+    ...streamFormats,
+    ...videoPresets,
+    ...audioPresets,
+  ]) {
     const key = `${opt.type}:${opt.formatId}`;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -497,6 +596,7 @@ export async function downloadMedia(params: {
   type: "video" | "audio";
   outputDir: string;
   title: string;
+  jobId?: string;
   onProgress?: (update: ProgressUpdate) => void;
 }): Promise<{ filePath: string; fileName: string; fileSize: number }> {
   await mkdir(params.outputDir, { recursive: true });
@@ -504,20 +604,26 @@ export async function downloadMedia(params: {
   const safeTitle = sanitizeFileName(params.title);
   const outputTemplate = path.join(params.outputDir, `${safeTitle}.%(ext)s`);
 
-  const args = [
+  const userArgs = [
     "--restrict-filenames",
     "-o",
     outputTemplate,
-    "--newline",
-    "--progress",
+    ...buildYtDlpFormatArgs(params.formatId, params.type),
+    params.url,
   ];
 
-  args.push(...buildYtDlpFormatArgs(params.formatId, params.type));
+  const argv = await buildYtDlpArgv(userArgs, true);
 
-  args.push(params.url);
+  const { logServerEventAsync } = await import("@/lib/server-log");
+  logServerEventAsync({
+    source: "ytdlp",
+    jobId: params.jobId,
+    message: `Starting: ${config.ytdlpPath} ${argv.join(" ")}`,
+    meta: { formatId: params.formatId, type: params.type },
+  });
 
   await new Promise<void>((resolve, reject) => {
-    const proc = spawn(config.ytdlpPath, args, {
+    const proc = spawn(config.ytdlpPath, argv, {
       shell: false,
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -529,11 +635,25 @@ export async function downloadMedia(params: {
       params.onProgress?.(state);
     };
 
-    const handleOutput = (chunk: Buffer) => {
+    const handleOutput = (chunk: Buffer, stream: "stdout" | "stderr") => {
       for (const line of chunk.toString().split(/\r?\n/)) {
-        if (!line.trim()) continue;
-        const parsed = parseYtDlpProgressLine(line);
-        if (parsed) emit(parsed);
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        const parsed = parseYtDlpProgressLine(trimmed);
+        if (parsed) {
+          emit(parsed);
+        } else if (
+          /\[Merger\]|\[ffmpeg\]|ERROR|WARNING/i.test(trimmed) &&
+          !/\[download\]/i.test(trimmed)
+        ) {
+          logServerEventAsync({
+            source: "ytdlp",
+            jobId: params.jobId,
+            level: /error/i.test(trimmed) ? "error" : "info",
+            message: trimmed.slice(0, 500),
+            meta: { stream },
+          });
+        }
       }
     };
 
@@ -542,8 +662,8 @@ export async function downloadMedia(params: {
       reject(new Error("timeout"));
     }, config.ytdlpTimeoutMs);
 
-    proc.stdout.on("data", handleOutput);
-    proc.stderr.on("data", handleOutput);
+    proc.stdout.on("data", (d) => handleOutput(d, "stdout"));
+    proc.stderr.on("data", (d) => handleOutput(d, "stderr"));
 
     emit({ phase: "downloading", downloadProgress: 0, convertProgress: 0, progress: 0 });
 
@@ -555,6 +675,11 @@ export async function downloadMedia(params: {
     proc.on("close", (code) => {
       clearTimeout(timer);
       if (code === 0) {
+        logServerEventAsync({
+          source: "ytdlp",
+          jobId: params.jobId,
+          message: "yt-dlp finished successfully",
+        });
         emit({
           phase: "ready",
           progress: 100,
@@ -562,7 +687,15 @@ export async function downloadMedia(params: {
           convertProgress: 100,
         });
         resolve();
-      } else reject(new Error(`yt-dlp failed with code ${code}`));
+      } else {
+        logServerEventAsync({
+          source: "ytdlp",
+          jobId: params.jobId,
+          level: "error",
+          message: `yt-dlp exited with code ${code}`,
+        });
+        reject(new Error(`yt-dlp failed with code ${code}`));
+      }
     });
   });
 

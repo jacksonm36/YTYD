@@ -3,6 +3,7 @@
  * Usage: npm run worker  (requires REDIS_URL in .env)
  */
 import "../src/lib/load-env";
+import { logServerEvent } from "../src/lib/server-log";
 import { Worker } from "bullmq";
 import { config } from "../src/lib/config";
 import {
@@ -15,6 +16,7 @@ import {
   type DownloadJobPayload,
 } from "../src/lib/queue";
 import { createRedisConnection, isRedisEnabled } from "../src/lib/redis";
+import { getYtDlpAntiBotStatus } from "../src/lib/ytdlp-anti-bot";
 
 async function main() {
   if (!isRedisEnabled()) {
@@ -37,8 +39,10 @@ async function main() {
     async (job) => {
       const { jobId } = job.data;
       console.log(`[worker] start ${jobId}`);
+      await logServerEvent({ source: "worker", jobId, message: "Worker picked job" });
       await runDownloadJob(jobId);
       console.log(`[worker] done ${jobId}`);
+      await logServerEvent({ source: "worker", jobId, message: "Worker finished job" });
     },
     {
       connection,
@@ -49,11 +53,25 @@ async function main() {
 
   worker.on("failed", (job, err) => {
     console.error(`[worker] failed ${job?.id}:`, err.message);
+    void logServerEvent({
+      source: "worker",
+      jobId: job?.id,
+      level: "error",
+      message: err.message,
+    });
+  });
+
+  const antiBot = await getYtDlpAntiBotStatus();
+  await logServerEvent({
+    source: "worker",
+    message: "Worker started",
+    meta: { antiBot, ytdlpPath: config.ytdlpPath },
   });
 
   console.log(
     `Download worker running (concurrency=${config.queueConcurrency}, redis=${config.redisUrl})`
   );
+  console.log("yt-dlp anti-bot:", JSON.stringify(antiBot));
 
   const shutdown = async () => {
     console.log("Shutting down worker…");

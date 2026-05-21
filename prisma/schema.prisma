@@ -118,6 +118,19 @@ model DownloadJob {
   @@index([expiresAt])
 }
 
+model SystemLog {
+  id        String   @id @default(cuid())
+  level     String   @default("info")
+  source    String
+  jobId     String?
+  message   String   @db.Text
+  meta      String?  @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([jobId])
+}
+
 model RateLimitEvent {
   id        String   @id @default(cuid())
   userId    String?

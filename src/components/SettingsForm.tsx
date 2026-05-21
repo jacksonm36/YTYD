@@ -8,6 +8,7 @@ import { LanguageSwitcher } from "./LanguageSwitcher";
 import { LoginHistory } from "./LoginHistory";
 import { InviteLinkSettings } from "./InviteLinkSettings";
 import { PendingUsersAdmin } from "./PendingUsersAdmin";
+import { AdminServerMonitor } from "./AdminServerMonitor";
 
 export function SettingsForm() {
   const t = useTranslations("settings");
@@ -155,6 +156,13 @@ export function SettingsForm() {
             </h2>
             <p className="text-xs text-[var(--muted)]">{t("pendingApprovalsHint")}</p>
             <PendingUsersAdmin />
+          </section>
+
+          <section className="space-y-4">
+            <h2 className="text-sm font-medium text-[var(--muted)]">
+              {t("serverMonitor")}
+            </h2>
+            <AdminServerMonitor />
           </section>
         </>
       )}

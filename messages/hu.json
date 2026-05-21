@@ -69,7 +69,7 @@
     "overallProgress": "Összesített folyamat",
     "phaseDownloading": "Videó/hang letöltése…",
     "phaseConverting": "Konvertálás (ffmpeg)…",
-    "phaseMerging": "Fájlok összefésülése…",
+    "phaseMerging": "Videó + hang összefésülése (ffmpeg)…",
     "ready": "Mentés a készülékre…",
     "failed": "A letöltés sikertelen",
     "termsLabel": "Megerősítem, hogy jogosult vagyok a tartalom letöltésére, és elfogadom a felhasználási feltételeket.",
@@ -128,7 +128,17 @@
     "pendingLoading": "Betöltés…",
     "pendingEmpty": "Nincs jóváhagyásra váró fiók.",
     "approveUser": "Jóváhagyás",
-    "rejectUser": "Elutasítás"
+    "rejectUser": "Elutasítás",
+    "serverMonitor": "Szerver aktivitás"
+  },
+  "admin": {
+    "serverMonitorHint": "Élő letöltési folyamat, yt-dlp és ffmpeg napló. 4 másodpercenként frissül.",
+    "activeJobs": "Aktív feladatok",
+    "noActiveJobs": "Nincs várakozó vagy futó feladat.",
+    "serverLogs": "Szerver napló",
+    "noLogs": "Még nincs naplóbejegyzés.",
+    "filterLogs": "Napló ehhez a feladathoz",
+    "clearLogFilter": "Összes napló"
   },
   "errors": {
     "invalidUrl": "Érvénytelen URL. Csak https:// linkek engedélyezettek.",
@@ -143,7 +153,7 @@
     "termsRequired": "El kell fogadnod a feltételeket a letöltéshez.",
     "generic": "Váratlan hiba történt",
     "ytdlpNotFound": "Az yt-dlp nem érhető el a szerveren. Telepítsd és állítsd be a YTDLP_PATH változót.",
-    "ytdlpBotCheck": "A YouTube blokkolta az automatikus lekérést. Frissítsd az yt-dlp-t a szerveren, vagy állíts be sütiket (lásd a dokumentáció).",
+    "ytdlpBotCheck": "Az oldal blokkolta az automatikus lekérést. Telepíts Deno-t, frissítsd az yt-dlp-t, és adj meg böngésző sütiket — lásd docs/YTDLP_ANTI_BOT.md.",
     "ytdlpVideoUnavailable": "A videó nem elérhető, privát, vagy régiókorlátozott.",
     "ytdlpExtractFailed": "Nem sikerült beolvasni a videó adatait. Próbálj másik linket, vagy frissítsd az yt-dlp-t.",
     "downloadDirUnavailable": "A letöltési mappa nem írható a szerveren. Ellenőrizd a TEMP_DOWNLOAD_DIR jogosultságait.",

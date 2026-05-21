@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { config } from "@/lib/config";
 import { validatePublicUrl, type ApiErrorCode } from "@/lib/security";
 import { downloadMedia } from "@/lib/yt-dlp";
+import { logServerEvent, logServerEventAsync } from "@/lib/server-log";
 import type { ProgressUpdate } from "@/lib/download-progress";
 
 const STALE_RUNNING_MS = 15 * 60 * 1000;
@@ -116,13 +117,28 @@ export async function runDownloadJob(jobId: string): Promise<void> {
   if (!job) return;
 
   try {
-    await validatePublicUrl(job.url);
+    const validated = await validatePublicUrl(job.url);
+    const downloadUrl = validated.toString();
+
+    await logServerEvent({
+      source: "job",
+      jobId,
+      message: `Job started: ${job.title ?? downloadUrl}`,
+      meta: {
+        formatId: job.formatId,
+        formatLabel: job.formatLabel,
+        type: job.type,
+        url: downloadUrl,
+      },
+    });
 
     const outputDir = path.join(config.tempDownloadDir, jobId);
     const needsConvert = job.type === "audio";
 
+    let lastLoggedPhase = "";
     const result = await downloadMedia({
-      url: job.url,
+      url: downloadUrl,
+      jobId,
       formatId: job.formatId ?? "bestvideo+bestaudio/best",
       type: job.type as "video" | "audio",
       outputDir,
@@ -135,6 +151,19 @@ export async function runDownloadJob(jobId: string): Promise<void> {
           update.downloadProgress >= 99
         ) {
           phase = "converting";
+        }
+        if (phase !== lastLoggedPhase) {
+          lastLoggedPhase = phase;
+          logServerEventAsync({
+            source: "job",
+            jobId,
+            message: `Phase → ${phase}`,
+            meta: {
+              progress: update.progress,
+              downloadProgress: update.downloadProgress,
+              convertProgress: update.convertProgress,
+            },
+          });
         }
         await persistProgress(jobId, { ...update, phase });
       },
@@ -160,8 +189,20 @@ export async function runDownloadJob(jobId: string): Promise<void> {
         completedAt: new Date(),
       },
     });
+    await logServerEvent({
+      source: "job",
+      jobId,
+      message: `Job ready: ${result.fileName} (${result.fileSize} bytes)`,
+    });
   } catch (err) {
     const code = classifyJobError(err);
+    logServerEventAsync({
+      source: "job",
+      jobId,
+      level: "error",
+      message: err instanceof Error ? err.message : "Job failed",
+      meta: { errorCode: code },
+    });
     await prisma.downloadJob.update({
       where: { id: jobId },
       data: {

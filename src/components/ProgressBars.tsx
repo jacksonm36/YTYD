@@ -37,8 +37,8 @@ export function ProgressBars({
   const phaseLabel = () => {
     if (status === "queued" || phase === "queued") return t("jobQueued");
     if (phase === "downloading") return t("phaseDownloading");
-    if (phase === "converting") return t("phaseConverting");
     if (phase === "merging") return t("phaseMerging");
+    if (phase === "converting") return t("phaseConverting");
     if (phase === "delivered") return t("savedToDevice");
     if (phase === "savingToDevice") return t("savingToDevice");
     if (status === "ready" || phase === "ready") return t("ready");

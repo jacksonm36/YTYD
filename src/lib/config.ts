@@ -31,6 +31,30 @@ export const config = {
   rateLimitLoginPerHour: Number(process.env.RATE_LIMIT_LOGIN_PER_HOUR ?? "20"),
   ytdlpTimeoutMs: Number(process.env.YTDLP_TIMEOUT_MS ?? "1800000"),
   ytdlpPath: env("YTDLP_PATH", "yt-dlp"),
+  /** Parallel HLS/DASH fragments (0 = disabled). Default 4. */
+  ytdlpConcurrentFragments: Number(
+    process.env.YTDLP_CONCURRENT_FRAGMENTS ?? "4"
+  ),
+  /** Use ffmpeg stream copy when merging video+audio (much faster). */
+  ytdlpFfmpegCopyMerge: env("YTDLP_FFMPEG_COPY_MERGE") !== "false",
+  /** Netscape cookies.txt (export from browser while logged in). */
+  ytdlpCookiesFile: env("YTDLP_COOKIES_FILE"),
+  /**
+   * JS runtimes for YouTube challenges: deno, node, or deno:/path,node:/path
+   * Empty = yt-dlp auto-detect only.
+   */
+  ytdlpJsRuntimes: env("YTDLP_JS_RUNTIMES", "deno,node"),
+  /** ejs bundle for pip-installed yt-dlp (e.g. ejs:github). */
+  ytdlpRemoteComponents: env("YTDLP_REMOTE_COMPONENTS", "ejs:github"),
+  /** Extra --extractor-args (semicolon-separated IE_KEY:ARGS). */
+  ytdlpExtractorArgs: env("YTDLP_EXTRACTOR_ARGS"),
+  /** When true and EXTRACTOR_ARGS unset, use android_vr + web_safari clients. */
+  ytdlpDefaultYoutubeClients: env("YTDLP_DEFAULT_YOUTUBE_CLIENTS") !== "false",
+  /** YouTube PO token (see yt-dlp PO Token Guide). */
+  ytdlpYoutubePoToken: env("YTDLP_YOUTUBE_PO_TOKEN"),
+  ytdlpUserAgent: env("YTDLP_USER_AGENT"),
+  /** Seconds between HTTP requests (rate-limit friendliness). 0 = off. */
+  ytdlpSleepRequests: Number(process.env.YTDLP_SLEEP_REQUESTS ?? "0"),
   /** argon2id (recommended) or bcrypt */
   passwordAlgorithm: env("PASSWORD_HASH_ALGORITHM", "argon2id").toLowerCase(),
   bcryptCost: Number(process.env.BCRYPT_COST ?? "12"),

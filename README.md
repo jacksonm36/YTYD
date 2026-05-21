@@ -17,7 +17,7 @@ Runs **natively on Linux** (no Docker). HTTPS is terminated at your **reverse pr
 | X (Twitter) | Posts with video |
 | Vimeo, Reddit, Twitch, Dailymotion, Pinterest, LinkedIn, SoundCloud | Public media URLs |
 
-Downloads use [yt-dlp](https://github.com/yt-dlp/yt-dlp). Private or login-only content may fail unless you configure cookies on the server (not included by default).
+Downloads use [yt-dlp](https://github.com/yt-dlp/yt-dlp). For YouTube/TikTok bot checks, install **Deno** and optional **browser cookies** on the server — see [docs/YTDLP_ANTI_BOT.md](docs/YTDLP_ANTI_BOT.md).
 
 ## Features
 

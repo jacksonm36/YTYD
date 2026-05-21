@@ -17,17 +17,18 @@ export interface ProgressUpdate {
 export function parseYtDlpProgressLine(line: string): Partial<ProgressUpdate> | null {
   const lower = line.toLowerCase();
 
-  if (/\[merger\]|merging formats/i.test(line)) {
+  if (/\[merger\]|merging formats|\[ffmpeg\].*merg/i.test(line)) {
+    const pct = extractPercent(line);
     return {
       phase: "merging",
       downloadProgress: 100,
-      convertProgress: Math.max(50, extractPercent(line) ?? 90),
-      progress: 92,
+      convertProgress: pct ?? 75,
+      progress: pct != null ? 85 + Math.round(pct * 0.14) : 90,
     };
   }
 
   if (
-    /\[extractaudio\]|\[ffmpeg\].*extract|\[postconvert\]|converting|extracting audio/i.test(
+    /\[extractaudio\]|\[ffmpeg\]|ffmpeg|\[postconvert\]|converting|extracting audio|post.process/i.test(
       line
     )
   ) {

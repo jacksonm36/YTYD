@@ -10,6 +10,10 @@ import {
   triggerSecureDownload,
 } from "@/lib/api-client";
 import { ProgressBars } from "./ProgressBars";
+import {
+  pickDefaultAudioFormat,
+  pickDefaultVideoFormat,
+} from "@/lib/format-defaults";
 
 interface FormatOption {
   formatId: string;
@@ -86,16 +90,8 @@ export function DownloadForm() {
     try {
       const data = await apiPost<ProbeResult>("/api/download/probe", { url });
       setProbe(data);
-      const videos = data.formats.filter((f) => f.type === "video");
-      const audios = data.formats.filter((f) => f.type === "audio");
-      const defaultVideo =
-        videos.find((f) => f.formatId === "yaytd:v:mp4:720") ??
-        videos.find((f) => f.label.includes("720p") && f.label.includes("MP4")) ??
-        videos[0];
-      const defaultAudio =
-        audios.find((f) => f.formatId === "yaytd:a:mp3:128") ??
-        audios.find((f) => f.label.includes("128")) ??
-        audios[0];
+      const defaultVideo = pickDefaultVideoFormat(data.formats);
+      const defaultAudio = pickDefaultAudioFormat(data.formats);
       const pick = defaultVideo ?? defaultAudio ?? data.formats[0];
       if (pick) {
         setSelectedFormat(pick.formatId);
