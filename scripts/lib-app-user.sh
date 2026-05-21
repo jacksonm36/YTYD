@@ -10,12 +10,22 @@ ensure_app_dir_owned() {
   chown -R "${SYSTEM_USER}:${SYSTEM_USER}" "${APP_DIR}"
 }
 
+# Use scripts under APP_DIR (readable by yaytd), not the root's home clone path.
+resolve_script_lib_dir() {
+  local app_dir="${1:?}"
+  if [[ -f "${app_dir}/scripts/lib-env.sh" ]]; then
+    echo "${app_dir}/scripts"
+    return 0
+  fi
+  cd "$(dirname "${BASH_SOURCE[0]}")" && pwd
+}
+
 run_as_app_user() {
   ensure_app_dir_owned
   local app_dir="${APP_DIR}"
   local user="${SYSTEM_USER}"
   local lib_dir
-  lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  lib_dir="$(resolve_script_lib_dir "${app_dir}")"
   sudo -u "${user}" bash -c '
     set -euo pipefail
     lib_dir="$1"
@@ -23,6 +33,10 @@ run_as_app_user() {
     shift 2
     export HOME="${app_dir}"
     export NPM_CONFIG_CACHE="${app_dir}/.cache/npm"
+    if [[ ! -r "${lib_dir}/lib-env.sh" ]]; then
+      echo "ERROR: cannot read ${lib_dir}/lib-env.sh (run install/finish-install to sync /opt/yaytd/scripts)" >&2
+      exit 1
+    fi
     # shellcheck source=lib-env.sh
     . "${lib_dir}/lib-env.sh"
     if [[ -f "${app_dir}/.env" ]]; then

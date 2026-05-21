@@ -691,7 +691,7 @@ step_packages() {
 
   # shellcheck source=lib-npm.sh
   . "$(cd "$(dirname "$0")" && pwd)/lib-npm.sh"
-  upgrade_system_npm
+  upgrade_system_npm || warn "System npm upgrade skipped — continuing with $(npm -v 2>/dev/null || echo npm)"
   ok "System npm $(npm -v) (node $(node -v))"
 
   if apt-cache show yt-dlp &>/dev/null; then
@@ -781,8 +781,12 @@ step_deploy() {
     --exclude data \
     "${SOURCE_DIR}/" "${APP_DIR}/"
 
-  chmod +x "${APP_DIR}/install.sh" "${APP_DIR}/repair-db.sh" "${APP_DIR}/upgrade-npm.sh" 2>/dev/null || true
-  chmod +x "${APP_DIR}"/scripts/*.sh 2>/dev/null || true
+  chmod +x "${APP_DIR}/install.sh" "${APP_DIR}/repair-db.sh" "${APP_DIR}/upgrade-npm.sh" \
+    "${APP_DIR}/finish-install.sh" 2>/dev/null || true
+  if [[ -d "${APP_DIR}/scripts" ]]; then
+    chmod -R a+rX "${APP_DIR}/scripts"
+    chmod +x "${APP_DIR}"/scripts/*.sh 2>/dev/null || true
+  fi
 
   ensure_app_dir_owned
   verify_package_lock "${SOURCE_DIR}"

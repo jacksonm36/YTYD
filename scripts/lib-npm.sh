@@ -14,12 +14,29 @@ upgrade_system_npm() {
   before="$(npm -v 2>/dev/null || echo unknown)"
   echo "npm before upgrade: ${before}"
 
-  # Must run as root — global install touches /usr/lib/node_modules/npm
-  npm install -g npm@latest
+  if npm install -g npm@latest 2>/dev/null; then
+    hash -r 2>/dev/null || true
+    after="$(npm -v 2>/dev/null || echo unknown)"
+    echo "npm upgraded: ${before} -> ${after}"
+    return 0
+  fi
+
+  echo "WARN: npm install -g npm@latest failed — repairing Node.js npm package"
+  if command -v apt-get >/dev/null 2>&1; then
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get install -y --reinstall nodejs 2>/dev/null || true
+  fi
 
   hash -r 2>/dev/null || true
+  if npm install -g npm@latest 2>/dev/null; then
+    after="$(npm -v 2>/dev/null || echo unknown)"
+    echo "npm upgraded after nodejs reinstall: ${before} -> ${after}"
+    return 0
+  fi
+
   after="$(npm -v 2>/dev/null || echo unknown)"
-  echo "npm upgraded: ${before} -> ${after}"
+  echo "WARN: using existing npm ${after} (global upgrade skipped — app installs still work)"
+  return 0
 }
 
 repair_npm_permissions() {
@@ -37,6 +54,10 @@ repair_npm_permissions() {
   fi
 
   mkdir -p "${app_dir}/.cache/npm"
+  if [[ -d "${app_dir}/scripts" ]]; then
+    chmod -R a+rX "${app_dir}/scripts" 2>/dev/null || true
+    chmod +x "${app_dir}"/scripts/*.sh 2>/dev/null || true
+  fi
   if [[ -e "${app_dir}/.npm" ]]; then
     chown -R "${user}:${user}" "${app_dir}/.npm"
   fi
@@ -57,9 +78,9 @@ test_npm_project() {
   fi
 
   echo "==> npm ci (smoke test)"
-  # shellcheck source=lib-app-user.sh
   APP_DIR="${app_dir}"
   SYSTEM_USER="${user}"
+  # shellcheck source=lib-app-user.sh
   . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-app-user.sh"
   verify_package_lock "${app_dir}"
   run_as_app_user npm ci

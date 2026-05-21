@@ -38,12 +38,15 @@ rsync -a \
   "${SOURCE_DIR}/" "${APP_DIR}/"
 chmod +x "${APP_DIR}/install.sh" "${APP_DIR}/repair-db.sh" "${APP_DIR}/upgrade-npm.sh" \
   "${APP_DIR}/finish-install.sh" 2>/dev/null || true
-chmod +x "${APP_DIR}"/scripts/*.sh 2>/dev/null || true
+if [[ -d "${APP_DIR}/scripts" ]]; then
+  chmod -R a+rX "${APP_DIR}/scripts"
+  chmod +x "${APP_DIR}"/scripts/*.sh 2>/dev/null || true
+fi
 repair_npm_permissions "${APP_DIR}" "${SYSTEM_USER}"
 ok "Synced to ${APP_DIR}"
 
 bold "==> Upgrade npm (optional)"
-upgrade_system_npm 2>/dev/null || echo "WARN: npm upgrade skipped"
+upgrade_system_npm || echo "WARN: npm upgrade skipped"
 
 bold "==> Repair database credentials"
 ensure_db_credentials_synced "${APP_DIR}" "${SOURCE_DIR}"
