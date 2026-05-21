@@ -11,8 +11,6 @@ import {
 } from "@/lib/auth-errors";
 import { prisma } from "@/lib/prisma";
 import { config } from "@/lib/config";
-import { getConfiguredAppUrls } from "@/lib/app-origin";
-
 const useSecureCookies = config.nodeEnv === "production";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -190,5 +188,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   pages: {
     signIn: "/hu/login",
   },
-  trustHost: !getConfiguredAppUrls().length && config.nodeEnv !== "production",
+  // Honor AUTH_TRUST_HOST (install default) and always trust host in development
+  // so LAN IPs (e.g. 192.168.x.x) work without duplicating every URL in .env.
+  trustHost:
+    process.env.AUTH_TRUST_HOST === "true" || config.nodeEnv !== "production",
 });

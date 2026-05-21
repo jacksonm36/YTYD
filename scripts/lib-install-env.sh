@@ -52,7 +52,7 @@ finalize_env_file_permissions() {
 write_dev_env_local_file() {
   [[ "${DEV_INSTALL:-0}" == "1" ]] || return 0
 
-  local target="${APP_DIR}/.env.local"
+  local target="${APP_DIR}/.env.development.local"
   local dev_url="${APP_URL}"
   if [[ "${dev_url}" != http://localhost* && "${dev_url}" != https://localhost* ]]; then
     dev_url="http://localhost:${APP_PORT:-3000}"
@@ -75,8 +75,8 @@ EOF
   chown "${ENV_FILE_OWNER}:${ENV_FILE_OWNER}" "${target}" 2>/dev/null || true
 
   if [[ "${APP_DIR}" != "${SOURCE_DIR}" && -d "${SOURCE_DIR}" ]]; then
-    cp "${target}" "${SOURCE_DIR}/.env.local"
-    chown "${ENV_FILE_OWNER}:${ENV_FILE_OWNER}" "${SOURCE_DIR}/.env.local" 2>/dev/null || true
-    chmod 600 "${SOURCE_DIR}/.env.local"
+    cp "${target}" "${SOURCE_DIR}/.env.development.local"
+    chown "${ENV_FILE_OWNER}:${ENV_FILE_OWNER}" "${SOURCE_DIR}/.env.development.local" 2>/dev/null || true
+    chmod 600 "${SOURCE_DIR}/.env.development.local"
   fi
 }

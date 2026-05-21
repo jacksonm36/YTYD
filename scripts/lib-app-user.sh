@@ -47,8 +47,8 @@ run_as_app_user() {
     if [[ -f "${app_dir}/.env" ]]; then
       load_env_exports "${app_dir}/.env"
     fi
-    if [[ -f "${app_dir}/.env.local" ]]; then
-      load_env_exports "${app_dir}/.env.local"
+    if [[ -f "${app_dir}/.env.development.local" ]]; then
+      load_env_exports "${app_dir}/.env.development.local"
     fi
     cd "${app_dir}"
     exec "$@"

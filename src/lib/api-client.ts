@@ -106,4 +106,6 @@ export async function triggerSecureDownload(jobId: string): Promise<void> {
   anchor.click();
   anchor.remove();
   URL.revokeObjectURL(objectUrl);
+
+  await apiPost(`/api/download/${jobId}/ack`, {});
 }

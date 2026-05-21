@@ -8,7 +8,7 @@ import {
   validatePublicUrl,
 } from "@/lib/security";
 import { handleApiAuthError, requireApiSession } from "@/lib/api-auth";
-import { probeUrl } from "@/lib/yt-dlp";
+import { probeUrl, YtDlpError } from "@/lib/yt-dlp";
 import { cleanupExpiredJobs } from "@/lib/jobs";
 import { cacheProbeFormats } from "@/lib/probe-cache";
 
@@ -45,6 +45,7 @@ export async function POST(request: Request) {
   } catch (err) {
     const authRes = handleApiAuthError(err);
     if (authRes) return authRes;
+    if (err instanceof YtDlpError) return apiError(err.code, 502);
     if (err instanceof z.ZodError) return apiError("invalidUrl", 400);
     if (err instanceof Error) {
       if (err.message === "invalidUrl") return apiError("invalidUrl", 400);

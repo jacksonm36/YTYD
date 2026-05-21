@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useLocale } from "next-intl";
 import {
@@ -73,6 +73,8 @@ export function DownloadForm() {
   const [error, setError] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const [job, setJob] = useState<JobStatus | null>(null);
+  const [savingToDevice, setSavingToDevice] = useState(false);
+  const deliveredToDevice = useRef<Set<string>>(new Set());
 
   const handleAnalyze = async () => {
     setError(null);
@@ -171,6 +173,7 @@ export function DownloadForm() {
       !jobId ||
       !job ||
       job.status === "ready" ||
+      job.status === "delivered" ||
       job.status === "failed" ||
       job.status === "expired"
     ) {
@@ -181,14 +184,59 @@ export function DownloadForm() {
     return () => clearInterval(interval);
   }, [jobId, job?.status, pollStatus]);
 
+  const saveToDevice = useCallback(
+    async (id: string) => {
+      setSavingToDevice(true);
+      setError(null);
+      setJob((prev) =>
+        prev ? { ...prev, phase: "savingToDevice" } : prev
+      );
+      try {
+        await triggerSecureDownload(id);
+        deliveredToDevice.current.add(id);
+        setJob((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: "delivered",
+                phase: "delivered",
+                progress: 100,
+                downloadProgress: 100,
+                convertProgress: 100,
+              }
+            : prev
+        );
+      } catch (err) {
+        deliveredToDevice.current.delete(id);
+        setError(
+          tErrors(err instanceof ApiClientError ? err.code : "generic")
+        );
+        void pollStatus();
+      } finally {
+        setSavingToDevice(false);
+      }
+    },
+    [pollStatus, tErrors]
+  );
+
   const handleDownloadFile = () => {
     if (!jobId) return;
-    void triggerSecureDownload(jobId).catch((err) => {
-      setError(
-        tErrors(err instanceof ApiClientError ? err.code : "generic")
-      );
-    });
+    void saveToDevice(jobId);
   };
+
+  useEffect(() => {
+    if (
+      !jobId ||
+      !job ||
+      job.status !== "ready" ||
+      job.phase === "savingToDevice" ||
+      savingToDevice ||
+      deliveredToDevice.current.has(jobId)
+    ) {
+      return;
+    }
+    void saveToDevice(jobId);
+  }, [jobId, job, job?.status, job?.phase, saveToDevice, savingToDevice]);
 
   const filteredFormats =
     probe?.formats.filter((f) => f.type === selectedType) ?? [];
@@ -328,6 +376,8 @@ export function DownloadForm() {
             </div>
           )}
 
+          <p className="text-xs text-[var(--muted)]">{t("serverStagingNote")}</p>
+
           <label className="flex items-start gap-3 text-sm cursor-pointer">
             <input
               type="checkbox"
@@ -361,15 +411,20 @@ export function DownloadForm() {
             convertProgress={job.convertProgress}
             showConvert={showConvertBar}
           />
-          {job.status === "ready" && (
-            <button
-              type="button"
-              onClick={handleDownloadFile}
-              className="w-full py-3 rounded-xl bg-green-600 text-white font-medium hover:opacity-90"
-            >
-              {t("downloadToDevice")}
-            </button>
-          )}
+          {job.status === "delivered" && !savingToDevice && (
+              <p className="text-sm text-emerald-400" role="status">
+                {t("savedToDevice")}
+              </p>
+            )}
+          {job.status === "ready" && !savingToDevice && (
+              <button
+                type="button"
+                onClick={handleDownloadFile}
+                className="w-full py-3 rounded-xl bg-green-600 text-white font-medium hover:opacity-90"
+              >
+                {t("downloadToDevice")}
+              </button>
+            )}
         </div>
       )}
     </div>

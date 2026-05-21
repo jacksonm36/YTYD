@@ -2,13 +2,17 @@ import { config as loadEnv } from "dotenv";
 import { existsSync } from "fs";
 import { resolve } from "path";
 
-/** Load `.env` then `.env.local` (local overrides) before reading `config`. */
+/** Load `.env` and dev-only overrides before reading `config` (worker/scripts). */
 export function loadProjectEnv(): void {
   const root = process.cwd();
   const env = resolve(root, ".env");
-  const local = resolve(root, ".env.local");
   if (existsSync(env)) loadEnv({ path: env });
-  if (existsSync(local)) loadEnv({ path: local, override: true });
+
+  const nodeEnv = process.env.NODE_ENV ?? "development";
+  if (nodeEnv !== "production") {
+    const devLocal = resolve(root, ".env.development.local");
+    if (existsSync(devLocal)) loadEnv({ path: devLocal, override: true });
+  }
 }
 
 loadProjectEnv();

@@ -64,9 +64,25 @@ export function getAllowedOrigins(): string[] {
   if (nodeEnv === "development") {
     origins.add("http://localhost:3000");
     origins.add("http://127.0.0.1:3000");
+    for (const host of getDevelopmentLanHosts()) {
+      origins.add(`http://${host}:3000`);
+    }
   }
 
   return [...origins];
+}
+
+/** Private-LAN hostnames/IPs allowed in development (override via ALLOWED_HOSTS). */
+function getDevelopmentLanHosts(): string[] {
+  const hosts = new Set<string>();
+  const extra = process.env.ALLOWED_HOSTS?.split(",") ?? [];
+  for (const entry of extra) {
+    const trimmed = entry.trim();
+    if (!trimmed) continue;
+    const host = parseHost(trimmed);
+    if (host) hosts.add(host);
+  }
+  return [...hosts];
 }
 
 /** Hostnames accepted on incoming requests (production hardening). */
@@ -93,6 +109,9 @@ export function getAllowedHosts(): string[] {
   if (nodeEnv === "development") {
     hosts.add("localhost");
     hosts.add("127.0.0.1");
+    for (const host of getDevelopmentLanHosts()) {
+      hosts.add(host);
+    }
   }
 
   // Reverse proxy health checks on loopback
@@ -115,7 +134,12 @@ export function getCanonicalAppBaseUrl(): string {
 
 export function buildContentSecurityPolicy(): string {
   const origins = getAllowedOrigins();
-  const connectSrc = ["'self'", ...origins].join(" ");
+  const nodeEnv = process.env.NODE_ENV ?? "development";
+  const connectParts =
+    nodeEnv === "development"
+      ? ["'self'", "ws:", "wss:", ...origins]
+      : ["'self'", ...origins];
+  const connectSrc = [...new Set(connectParts)].join(" ");
   const formAction = ["'self'", ...origins].join(" ");
 
   return [

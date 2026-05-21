@@ -39,6 +39,8 @@ export function ProgressBars({
     if (phase === "downloading") return t("phaseDownloading");
     if (phase === "converting") return t("phaseConverting");
     if (phase === "merging") return t("phaseMerging");
+    if (phase === "delivered") return t("savedToDevice");
+    if (phase === "savingToDevice") return t("savingToDevice");
     if (status === "ready" || phase === "ready") return t("ready");
     if (status === "failed") return t("failed");
     if (status === "expired" || phase === "expired") return t("expired");

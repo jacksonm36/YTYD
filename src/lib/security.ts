@@ -23,6 +23,11 @@ export type ApiErrorCode =
   | "forbidden"
   | "unsupportedPlatform"
   | "ytdlpNotFound"
+  | "ytdlpBotCheck"
+  | "ytdlpVideoUnavailable"
+  | "ytdlpExtractFailed"
+  | "downloadDirUnavailable"
+  | "diskFull"
   | "invalidFormat";
 
 export async function validatePublicUrl(urlString: string): Promise<URL> {

@@ -2,7 +2,7 @@ import { unlink, rm } from "fs/promises";
 import path from "path";
 import { prisma } from "@/lib/prisma";
 import { config } from "@/lib/config";
-import { validatePublicUrl } from "@/lib/security";
+import { validatePublicUrl, type ApiErrorCode } from "@/lib/security";
 import { downloadMedia } from "@/lib/yt-dlp";
 import type { ProgressUpdate } from "@/lib/download-progress";
 
@@ -84,6 +84,19 @@ export async function deleteJobFiles(
   }
 }
 
+function classifyJobError(err: unknown): ApiErrorCode {
+  if (err instanceof Error) {
+    if (err.message === "fileTooLarge") return "fileTooLarge";
+    if (err.message === "invalidUrl") return "invalidUrl";
+    const e = err as NodeJS.ErrnoException;
+    if (e.code === "EACCES" || e.code === "EROFS") {
+      return "downloadDirUnavailable";
+    }
+    if (e.code === "ENOSPC") return "diskFull";
+  }
+  return "generic";
+}
+
 /** Process one download job (called by Redis worker or in-process fallback). */
 export async function runDownloadJob(jobId: string): Promise<void> {
   const claimed = await prisma.downloadJob.updateMany({
@@ -148,12 +161,7 @@ export async function runDownloadJob(jobId: string): Promise<void> {
       },
     });
   } catch (err) {
-    const code =
-      err instanceof Error && err.message === "fileTooLarge"
-        ? "fileTooLarge"
-        : err instanceof Error && err.message === "invalidUrl"
-          ? "invalidUrl"
-          : "generic";
+    const code = classifyJobError(err);
     await prisma.downloadJob.update({
       where: { id: jobId },
       data: {

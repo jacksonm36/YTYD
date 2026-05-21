@@ -12,6 +12,7 @@ function serializeJob(job: {
   errorCode: string | null;
   title: string | null;
   fileName: string | null;
+  filePath: string | null;
   fileSize: bigint | null;
   type: string;
   formatLabel: string | null;
@@ -43,7 +44,7 @@ function serializeJob(job: {
     createdAt: job.createdAt.toISOString(),
     expiresAt: job.expiresAt.toISOString(),
     canDownload:
-      !expired && job.status === "ready" && !!job.fileName,
+      !expired && job.status === "ready" && !!job.fileName && !!job.filePath,
   };
 }
 

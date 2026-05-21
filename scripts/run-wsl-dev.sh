@@ -20,9 +20,9 @@ if [[ ! -f .env ]]; then
   exit 1
 fi
 
-if [[ ! -f .env.local && -f .env.local.example ]]; then
-  cp .env.local.example .env.local
-  echo "Created .env.local from .env.local.example (dev overrides)"
+if [[ ! -f .env.development.local && -f .env.development.local.example ]]; then
+  cp .env.development.local.example .env.development.local
+  echo "Created .env.development.local (dev overrides)"
 fi
 
 if [[ ! -d node_modules ]]; then

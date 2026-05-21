@@ -11,11 +11,15 @@ function bootstrapEnv(): void {
   const candidates = [
     process.env.YAYTD_ENV_FILE,
     resolve(root, ".env"),
-    resolve(root, ".env.local"),
+    resolve(root, ".env.development.local"),
   ].filter((p): p is string => Boolean(p));
   for (const path of candidates) {
     if (existsSync(path)) {
-      loadEnv({ path, override: path.endsWith(".env.local") });
+      const isDevLocal = path.endsWith(".env.development.local");
+      if (isDevLocal && (process.env.NODE_ENV ?? "development") === "production") {
+        continue;
+      }
+      loadEnv({ path, override: isDevLocal });
     }
   }
 }

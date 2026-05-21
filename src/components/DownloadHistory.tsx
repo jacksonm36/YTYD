@@ -32,6 +32,7 @@ function statusLabel(
     queued: "status_queued",
     running: "status_running",
     ready: "status_ready",
+    delivered: "status_delivered",
     failed: "status_failed",
     expired: "status_expired",
   };
@@ -131,7 +132,7 @@ export function DownloadHistory({ initialJobs }: { initialJobs: HistoryJob[] }) 
                   )}
                   <span
                     className={`text-xs px-2 py-0.5 rounded ${
-                      job.status === "ready"
+                      job.status === "ready" || job.status === "delivered"
                         ? "bg-green-900/50 text-green-300"
                         : job.status === "failed"
                           ? "bg-red-900/50 text-red-300"

@@ -114,13 +114,15 @@ sudo YAYTD_APP_DIR="$PWD" YAYTD_DEV_INSTALL=1 ./scripts/install.sh -y
 npm run dev:all   # web + worker
 ```
 
-This writes `.env`, `.env.local` (localhost + `/tmp/yaytd-downloads`), and keeps files owned by your user (not `root` / `yaytd` only).
+This writes `.env` and `.env.development.local` (localhost + `/tmp/yaytd-downloads`; **not** loaded by `next start`). Files stay owned by your user.
+
+**Do not expose `npm run dev` on your public domain** — use `npm run build && npm run start:prod:all` behind nginx instead.
 
 **Manual:**
 
 ```bash
 cp .env.example .env
-cp .env.local.example .env.local
+cp .env.development.local.example .env.development.local
 # Edit DATABASE_URL, AUTH_SECRET, REDIS_URL in .env
 npm install
 npx prisma migrate deploy

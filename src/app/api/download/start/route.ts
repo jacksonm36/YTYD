@@ -28,7 +28,7 @@ import { getJobExpiry, cleanupExpiredJobs } from "@/lib/jobs";
 
 import { scheduleJob } from "@/lib/queue";
 
-import { probeUrl } from "@/lib/yt-dlp";
+import { probeUrl, YtDlpError } from "@/lib/yt-dlp";
 
 import { isAllowedFormatId } from "@/lib/probe-cache";
 
@@ -207,6 +207,8 @@ export async function POST(request: Request) {
     const authRes = handleApiAuthError(err);
 
     if (authRes) return authRes;
+
+    if (err instanceof YtDlpError) return apiError(err.code, 502);
 
     if (err instanceof z.ZodError) {
 

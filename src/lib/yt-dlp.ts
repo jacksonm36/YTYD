@@ -15,6 +15,32 @@ import {
   parseYtDlpProgressLine,
   type ProgressUpdate,
 } from "@/lib/download-progress";
+import type { ApiErrorCode } from "@/lib/security";
+
+export class YtDlpError extends Error {
+  readonly code: ApiErrorCode;
+
+  constructor(code: ApiErrorCode, detail: string) {
+    super(detail);
+    this.name = "YtDlpError";
+    this.code = code;
+  }
+}
+
+function classifyYtDlpStderr(stderr: string): ApiErrorCode {
+  const s = stderr.toLowerCase();
+  if (s.includes("sign in to confirm") || s.includes("not a bot")) {
+    return "ytdlpBotCheck";
+  }
+  if (
+    s.includes("video unavailable") ||
+    s.includes("private video") ||
+    s.includes("this video is private")
+  ) {
+    return "ytdlpVideoUnavailable";
+  }
+  return "ytdlpExtractFailed";
+}
 
 export interface FormatOption {
   formatId: string;
@@ -88,7 +114,10 @@ function runYtDlp(args: string[], timeoutMs = 120000): Promise<string> {
     proc.on("close", (code) => {
       clearTimeout(timer);
       if (code === 0) resolve(stdout);
-      else reject(new Error(stderr || `yt-dlp exited ${code}`));
+      else {
+        const detail = stderr || `yt-dlp exited ${code}`;
+        reject(new YtDlpError(classifyYtDlpStderr(detail), detail));
+      }
     });
   });
 }

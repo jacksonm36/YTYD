@@ -486,7 +486,7 @@ RATE_LIMIT_PROBE_PER_HOUR="10"
 RATE_LIMIT_DOWNLOAD_PER_HOUR="5"
 RATE_LIMIT_LOGIN_PER_HOUR="20"
 YTDLP_TIMEOUT_MS="1800000"
-YTDLP_PATH="yt-dlp"
+YTDLP_PATH="$([[ -x /usr/local/bin/yt-dlp ]] && echo /usr/local/bin/yt-dlp || echo yt-dlp)"
 
 ADMIN_DEFAULT_PASSWORD="${ADMIN_PASSWORD}"
 EOF
@@ -697,8 +697,16 @@ step_packages() {
 
   if apt-cache show yt-dlp &>/dev/null; then
     apt-get install -y yt-dlp
+  fi
+  # Debian's yt-dlp package is often outdated; install latest to /usr/local/bin
+  pip3 install --break-system-packages --ignore-installed -U yt-dlp 2>/dev/null \
+    || pip3 install -U yt-dlp 2>/dev/null || true
+  if [[ -x /usr/local/bin/yt-dlp ]]; then
+    ok "yt-dlp $(/usr/local/bin/yt-dlp --version) → /usr/local/bin/yt-dlp"
+  elif command -v yt-dlp >/dev/null 2>&1; then
+    ok "yt-dlp $(yt-dlp --version)"
   else
-    pip3 install --break-system-packages -U yt-dlp 2>/dev/null || pip3 install -U yt-dlp
+    warn "yt-dlp not found — video downloads will fail"
   fi
 
   if [[ "${INSTALL_NGINX}" == "yes" ]] && ! command -v nginx >/dev/null 2>&1; then
@@ -723,6 +731,11 @@ step_user_dirs() {
   . "$(cd "$(dirname "$0")" && pwd)/lib-npm.sh"
   repair_npm_permissions "${APP_DIR}" "${SYSTEM_USER}"
   chown -R "${SYSTEM_USER}:${SYSTEM_USER}" "${DATA_DIR}" 2>/dev/null || true
+  chmod 750 "${DATA_DIR}" 2>/dev/null || true
+  if [[ "${DEV_INSTALL:-0}" == "1" && -n "${ENV_FILE_OWNER:-}" ]]; then
+    chown -R "${ENV_FILE_OWNER}:${ENV_FILE_OWNER}" "${DATA_DIR}" 2>/dev/null || true
+    dim "Dev install: ${DATA_DIR} owned by ${ENV_FILE_OWNER} (manual npm run)"
+  fi
 }
 
 step_postgres() {
@@ -772,7 +785,7 @@ step_env() {
     ok "Wrote ${APP_DIR}/.env (random AUTH_SECRET + DOWNLOAD_TOKEN_SECRET)"
   fi
   if [[ "${DEV_INSTALL:-0}" == "1" ]]; then
-    ok "Wrote .env.local (dev overrides: localhost, /tmp/yaytd-downloads)"
+    ok "Wrote .env.development.local (dev-only; not loaded by next start)"
   fi
   ok "Wrote ${APP_DIR}/.install-secrets (DB + admin passwords)"
 
