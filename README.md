@@ -2,7 +2,7 @@
 
 **YAYTD** is the short name for **Yet Another YouTube Downloader** — a secure, self-hosted media downloader. Paste a link from **YouTube, TikTok, Instagram, Facebook, X, Vimeo, Reddit, Twitch**, and more, pick a format, and save to your device. Powered by **yt-dlp**, **Next.js**, **Auth.js**, **PostgreSQL**, and **Redis** (BullMQ).
 
-**Repository:** [github.com/jacksonm36/YTYD](https://github.com/jacksonm36/YTYD) · **Install guide:** [INSTALL.md](INSTALL.md)
+**Repository:** [github.com/jacksonm36/YTYD](https://github.com/jacksonm36/YTYD) · **Install guide:** [INSTALL.md](INSTALL.md) · **Security:** [SECURITY.md](SECURITY.md) · [`security.txt`](https://letolto.gamedns.hu/.well-known/security.txt) (on a live deploy)
 
 Runs **natively on Linux** (no Docker). HTTPS is terminated at your **reverse proxy**; the Node app listens on `http://127.0.0.1:3000`.
 
