@@ -11,8 +11,8 @@ Group=yaytd
 WorkingDirectory=/opt/yaytd
 EnvironmentFile=/opt/yaytd/.env
 Environment=NODE_ENV=production
-Environment=PORT=3000
-# App binds localhost only via `next start -H 127.0.0.1` in start:prod.
+Environment=PORT=3001
+# Loopback-only Next; nginx listens on :3000 and proxies here (see deploy/nginx-yaytd.conf).
 
 ExecStart=/usr/bin/npm run start:prod
 
