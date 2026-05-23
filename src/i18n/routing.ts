@@ -8,6 +8,8 @@ export const routing = defineRouting({
   localeCookie: {
     name: "locale",
     maxAge: 60 * 60 * 24 * 365,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
   },
 });
 
