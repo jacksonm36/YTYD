@@ -35,7 +35,13 @@ rsync -a \
   --exclude data \
   --exclude .env \
   --exclude .install-secrets \
+  --exclude .env.development.local \
+  --exclude .env.local \
+  --exclude '.env.*.local' \
   "${SOURCE_DIR}/" "${APP_DIR}/"
+# shellcheck source=lib-install-env.sh
+. "${SCRIPT_DIR}/lib-install-env.sh"
+strip_production_dev_env_files
 chmod +x "${APP_DIR}/install.sh" "${APP_DIR}/repair-db.sh" "${APP_DIR}/upgrade-npm.sh" \
   "${APP_DIR}/finish-install.sh" 2>/dev/null || true
 if [[ -d "${APP_DIR}/scripts" ]]; then

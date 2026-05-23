@@ -6,6 +6,7 @@ import {
   apiError,
   checkRateLimit,
   countPendingJobs,
+  countRunningJobs,
   getClientIp,
   hashIp,
   validatePublicUrl,
@@ -55,9 +56,15 @@ export async function POST(request: Request) {
     }
 
     const ip = getClientIp(request);
-    const pending = await countPendingJobs(session.user.id);
+    const [pending, running] = await Promise.all([
+      countPendingJobs(session.user.id),
+      countRunningJobs(session.user.id),
+    ]);
     if (pending + body.items.length > config.maxPendingJobsPerUser) {
       return apiError("tooManyPending", 429);
+    }
+    if (running >= config.maxConcurrentJobsPerUser) {
+      return apiError("tooManyJobs", 429);
     }
 
     void cleanupExpiredJobs();

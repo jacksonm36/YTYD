@@ -843,7 +843,14 @@ step_deploy() {
     --exclude .next \
     --exclude .git \
     --exclude data \
+    --exclude .env.development.local \
+    --exclude .env.local \
+    --exclude '.env.*.local' \
     "${SOURCE_DIR}/" "${APP_DIR}/"
+
+  # shellcheck source=lib-install-env.sh
+  . "$(cd "$(dirname "$0")" && pwd)/lib-install-env.sh"
+  strip_production_dev_env_files
 
   chmod +x "${APP_DIR}/install.sh" "${APP_DIR}/repair-db.sh" "${APP_DIR}/upgrade-npm.sh" \
     "${APP_DIR}/finish-install.sh" 2>/dev/null || true

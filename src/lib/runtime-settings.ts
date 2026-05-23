@@ -16,7 +16,12 @@ function envRaw(key: string, fallback = ""): string {
 /** Load DB overrides into memory (call on startup and after admin saves). */
 export async function reloadRuntimeSettings(): Promise<void> {
   try {
-    const rows = await prisma.serverSetting.findMany();
+    await prisma.serverSetting.deleteMany({
+      where: { key: { notIn: [...SERVER_SETTING_KEYS] } },
+    });
+    const rows = await prisma.serverSetting.findMany({
+      where: { key: { in: [...SERVER_SETTING_KEYS] } },
+    });
     overrides = Object.fromEntries(rows.map((r) => [r.key, r.value]));
     loadedAt = Date.now();
   } catch {
@@ -75,7 +80,7 @@ export async function saveServerSettings(
   for (const [key, value] of Object.entries(updates)) {
     const def = getServerSettingDef(key);
     if (!def) continue;
-    validateSettingValue(def, value);
+    validateServerSettingValue(key, value);
     await prisma.serverSetting.upsert({
       where: { key },
       create: { key, value, updatedBy: adminUserId },
@@ -89,6 +94,15 @@ export async function resetServerSetting(key: string): Promise<void> {
   if (!SERVER_SETTING_KEYS.has(key)) return;
   await prisma.serverSetting.deleteMany({ where: { key } });
   await reloadRuntimeSettings();
+}
+
+/** Validate a server-setting value (shared by admin API and DB console). */
+export function validateServerSettingValue(key: string, value: string): void {
+  if (!SERVER_SETTING_KEYS.has(key)) {
+    throw new Error("unknown setting");
+  }
+  const def = getServerSettingDef(key);
+  validateSettingValue(def, value);
 }
 
 function validateSettingValue(

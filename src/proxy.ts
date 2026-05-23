@@ -25,13 +25,21 @@ function isValidRedirectPath(pathname: string): boolean {
   return pathname.startsWith("/") && !pathname.includes("\n") && !pathname.includes("\r");
 }
 
-async function isAuthenticated(request: NextRequest): Promise<boolean> {
-  const token = await getToken({
+async function getSessionToken(request: NextRequest) {
+  return getToken({
     req: request,
     secret: process.env.AUTH_SECRET,
     secureCookie: useSecureCookies,
   });
+}
+
+async function isAuthenticated(request: NextRequest): Promise<boolean> {
+  const token = await getSessionToken(request);
   return !!(token?.id ?? token?.sub);
+}
+
+function isAdminApiPath(pathname: string): boolean {
+  return pathname.startsWith("/api/admin");
 }
 
 function validateHost(request: NextRequest): NextResponse | null {
@@ -68,12 +76,15 @@ export async function proxy(request: NextRequest) {
     const preflight = corsPreflightResponse(request);
     if (preflight) return preflight;
 
-    const authed = await isAuthenticated(request);
+    const token = await getSessionToken(request);
+    const authed = !!(token?.id ?? token?.sub);
     let response: NextResponse;
     if (isPublicApiPath(pathname)) {
       response = NextResponse.next();
     } else if (!authed) {
       response = NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    } else if (isAdminApiPath(pathname) && token?.role !== "admin") {
+      response = NextResponse.json({ error: "unauthorized" }, { status: 403 });
     } else {
       response = NextResponse.next();
     }

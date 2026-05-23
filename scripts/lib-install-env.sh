@@ -29,6 +29,12 @@ detect_install_mode() {
   fi
 }
 
+# Remove dev-only env files from production app dir (Next/dotenv may load them).
+strip_production_dev_env_files() {
+  [[ "${DEV_INSTALL:-0}" == "1" ]] && return 0
+  rm -f "${APP_DIR}/.env.development.local" "${APP_DIR}/.env.local"
+}
+
 finalize_env_file_permissions() {
   local app_env="${APP_DIR}/.env"
   local src_env="${SOURCE_DIR}/.env"

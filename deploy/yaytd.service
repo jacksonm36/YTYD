@@ -12,7 +12,7 @@ WorkingDirectory=/opt/yaytd
 EnvironmentFile=/opt/yaytd/.env
 Environment=NODE_ENV=production
 Environment=PORT=3000
-Environment=HOSTNAME=127.0.0.1
+# App binds localhost only via `next start -H 127.0.0.1` in start:prod.
 
 ExecStart=/usr/bin/npm run start:prod
 

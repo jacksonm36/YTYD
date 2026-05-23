@@ -25,6 +25,7 @@ fi
 mkdir -p "${APP_DIR}" "${DATA_DIR}"
 rsync -a --delete \
   --exclude node_modules --exclude .next --exclude .git \
+  --exclude .env.development.local --exclude .env.local --exclude '.env.*.local' \
   "${SOURCE_DIR}/" "${APP_DIR}/"
 chmod +x "${APP_DIR}/install.sh" "${APP_DIR}/repair-db.sh" "${APP_DIR}/upgrade-npm.sh" 2>/dev/null || true
 chmod +x "${APP_DIR}"/scripts/*.sh 2>/dev/null || true
@@ -41,6 +42,7 @@ chmod 600 "${APP_DIR}/.env"
 . "$(cd "$(dirname "$0")" && pwd)/lib-install-env.sh"
 detect_install_mode
 finalize_env_file_permissions
+strip_production_dev_env_files
 
 verify_package_lock "${SOURCE_DIR}"
 
