@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { apiError } from "@/lib/security";
 import { handleApiAuthError, requireApiSession } from "@/lib/api-auth";
+import { removeDownloadJobForUser } from "@/lib/download-job-admin";
 
 function serializeJob(job: {
   id: string;
@@ -66,5 +67,22 @@ export async function GET(
     const authRes = handleApiAuthError(err);
     if (authRes) return authRes;
     return apiError("notFound", 404);
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ jobId: string }> }
+) {
+  try {
+    const session = await requireApiSession(request);
+    const { jobId } = await params;
+    const removed = await removeDownloadJobForUser(session.user!.id!, jobId);
+    if (!removed) return apiError("notFound", 404);
+    return Response.json({ ok: true });
+  } catch (err) {
+    const authRes = handleApiAuthError(err);
+    if (authRes) return authRes;
+    return apiError("generic", 500);
   }
 }

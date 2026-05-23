@@ -52,6 +52,14 @@ export async function scheduleJob(jobId: string): Promise<void> {
   await queue.add("process", { jobId }, { jobId });
 }
 
+/** Remove a queued BullMQ job if it has not started yet. */
+export async function cancelQueuedJob(jobId: string): Promise<void> {
+  const queue = getDownloadQueue();
+  if (!queue) return;
+  const job = await queue.getJob(jobId);
+  if (job) await job.remove();
+}
+
 export async function closeDownloadQueue(): Promise<void> {
   if (downloadQueue) {
     await downloadQueue.close();

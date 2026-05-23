@@ -2,7 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
-import { ApiClientError, apiGet, triggerSecureDownload } from "@/lib/api-client";
+import {
+  ApiClientError,
+  apiDelete,
+  apiGet,
+  apiPost,
+  triggerSecureDownload,
+} from "@/lib/api-client";
 import { ProgressBars } from "./ProgressBars";
 
 export interface HistoryJob {
@@ -57,11 +63,17 @@ function formatBytes(size: string | null, locale: string): string {
   return `${v.toFixed(1)} ${units[i]}`;
 }
 
+function canRedownload(status: string): boolean {
+  return ["ready", "delivered", "failed", "expired"].includes(status);
+}
+
 export function DownloadHistory({ initialJobs }: { initialJobs: HistoryJob[] }) {
   const t = useTranslations("download");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
   const [jobs, setJobs] = useState(initialJobs);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const fetchHistory = useCallback(async () => {
     try {
@@ -82,6 +94,65 @@ export function DownloadHistory({ initialJobs }: { initialJobs: HistoryJob[] }) 
     });
   };
 
+  const handleDelete = async (jobId: string) => {
+    if (!confirm(t("historyDeleteConfirm"))) return;
+    setBusy(jobId);
+    try {
+      await apiDelete(`/api/download/${jobId}`);
+      setJobs((prev) => prev.filter((j) => j.id !== jobId));
+    } catch (err) {
+      console.error(err instanceof ApiClientError ? err.code : "delete failed");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleRedownload = async (jobId: string) => {
+    setBusy(jobId);
+    try {
+      await apiPost(`/api/download/${jobId}/redownload`, {});
+      await fetchHistory();
+    } catch (err) {
+      const code = err instanceof ApiClientError ? err.code : "generic";
+      alert(tErrors(code));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    if (!confirm(t("historyDeleteAllConfirm"))) return;
+    setBulkBusy(true);
+    try {
+      await apiDelete("/api/download/history");
+      setJobs([]);
+    } catch (err) {
+      console.error(err instanceof ApiClientError ? err.code : "delete all failed");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const handleRedownloadAll = async () => {
+    if (!confirm(t("historyRedownloadAllConfirm"))) return;
+    setBulkBusy(true);
+    try {
+      const data = await apiPost<{
+        queued: number;
+        errors: { id: string; code: string }[];
+      }>("/api/download/history", { all: true });
+      await fetchHistory();
+      if (data.queued === 0 && data.errors.length === 0) {
+        alert(t("historyNothingToRedownload"));
+      }
+    } catch (err) {
+      const code = err instanceof ApiClientError ? err.code : "generic";
+      alert(tErrors(code));
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   useEffect(() => {
     setJobs(initialJobs);
   }, [initialJobs]);
@@ -100,93 +171,139 @@ export function DownloadHistory({ initialJobs }: { initialJobs: HistoryJob[] }) 
     return <p className="text-[var(--muted)]">{t("historyEmpty")}</p>;
   }
 
-  return (
-    <ul className="space-y-4">
-      {jobs.map((job) => {
-        const isActive = job.status === "queued" || job.status === "running";
-        const showConvert =
-          job.type === "audio" ||
-          job.phase === "converting" ||
-          job.phase === "merging" ||
-          job.convertProgress > 0;
+  const hasRedownloadable = jobs.some((j) => canRedownload(j.status));
+  const toolbarDisabled = bulkBusy || busy !== null;
 
-        return (
-          <li
-            key={job.id}
-            className="p-4 rounded-xl border border-[var(--border)] bg-[var(--card)] space-y-3"
-          >
-            <div className="flex flex-wrap justify-between gap-2">
-              <div className="min-w-0 flex-1">
-                <p className="font-medium truncate">{job.title ?? job.url}</p>
-                <p className="text-xs text-[var(--muted)] mt-1 truncate">
-                  {job.url}
-                </p>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  <span className="text-xs px-2 py-0.5 rounded bg-[var(--border)]">
-                    {job.type === "audio" ? t("audio") : t("video")}
-                  </span>
-                  {job.formatLabel && (
-                    <span className="text-xs px-2 py-0.5 rounded bg-[var(--border)] text-[var(--muted)]">
-                      {job.formatLabel}
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={toolbarDisabled}
+          onClick={() => void handleRedownloadAll()}
+          className="px-4 py-2 rounded-lg border border-[var(--border)] text-sm font-medium hover:bg-[var(--border)] disabled:opacity-50"
+        >
+          {t("historyRedownloadAll")}
+        </button>
+        <button
+          type="button"
+          disabled={toolbarDisabled}
+          onClick={() => void handleDeleteAll()}
+          className="px-4 py-2 rounded-lg border border-red-800/60 text-red-300 text-sm font-medium hover:bg-red-950/40 disabled:opacity-50"
+        >
+          {t("historyDeleteAll")}
+        </button>
+      </div>
+
+      <ul className="space-y-4">
+        {jobs.map((job) => {
+          const isActive = job.status === "queued" || job.status === "running";
+          const showConvert =
+            job.type === "audio" ||
+            job.phase === "converting" ||
+            job.phase === "merging" ||
+            job.convertProgress > 0;
+          const rowBusy = busy === job.id || bulkBusy;
+
+          return (
+            <li
+              key={job.id}
+              className="p-4 rounded-xl border border-[var(--border)] bg-[var(--card)] space-y-3"
+            >
+              <div className="flex flex-wrap justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium truncate">{job.title ?? job.url}</p>
+                  <p className="text-xs text-[var(--muted)] mt-1 truncate">
+                    {job.url}
+                  </p>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <span className="text-xs px-2 py-0.5 rounded bg-[var(--border)]">
+                      {job.type === "audio" ? t("audio") : t("video")}
                     </span>
+                    {job.formatLabel && (
+                      <span className="text-xs px-2 py-0.5 rounded bg-[var(--border)] text-[var(--muted)]">
+                        {job.formatLabel}
+                      </span>
+                    )}
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded ${
+                        job.status === "ready" || job.status === "delivered"
+                          ? "bg-green-900/50 text-green-300"
+                          : job.status === "failed"
+                            ? "bg-red-900/50 text-red-300"
+                            : isActive
+                              ? "bg-blue-900/50 text-blue-300"
+                              : "bg-[var(--border)] text-[var(--muted)]"
+                      }`}
+                    >
+                      {statusLabel(job.status, t)}
+                    </span>
+                  </div>
+                </div>
+                <div className="text-right text-xs text-[var(--muted)] shrink-0">
+                  <p>
+                    {new Intl.DateTimeFormat(locale === "hu" ? "hu-HU" : "en-US", {
+                      dateStyle: "short",
+                      timeStyle: "short",
+                    }).format(new Date(job.createdAt))}
+                  </p>
+                  {job.fileSize && (
+                    <p className="mt-1">{formatBytes(job.fileSize, locale)}</p>
                   )}
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded ${
-                      job.status === "ready" || job.status === "delivered"
-                        ? "bg-green-900/50 text-green-300"
-                        : job.status === "failed"
-                          ? "bg-red-900/50 text-red-300"
-                          : isActive
-                            ? "bg-blue-900/50 text-blue-300"
-                            : "bg-[var(--border)] text-[var(--muted)]"
-                    }`}
-                  >
-                    {statusLabel(job.status, t)}
-                  </span>
                 </div>
               </div>
-              <div className="text-right text-xs text-[var(--muted)] shrink-0">
-                <p>
-                  {new Intl.DateTimeFormat(locale === "hu" ? "hu-HU" : "en-US", {
-                    dateStyle: "short",
-                    timeStyle: "short",
-                  }).format(new Date(job.createdAt))}
+
+              {isActive && (
+                <ProgressBars
+                  phase={job.phase}
+                  status={job.status}
+                  progress={job.progress}
+                  downloadProgress={job.downloadProgress}
+                  convertProgress={job.convertProgress}
+                  showConvert={showConvert}
+                />
+              )}
+
+              {job.status === "failed" && job.errorCode && (
+                <p className="text-red-400 text-sm">
+                  {tErrors(job.errorCode)}
                 </p>
-                {job.fileSize && (
-                  <p className="mt-1">{formatBytes(job.fileSize, locale)}</p>
+              )}
+
+              <div className="flex flex-wrap gap-2">
+                {job.canDownload && (
+                  <button
+                    type="button"
+                    disabled={rowBusy}
+                    onClick={() => handleDownload(job.id)}
+                    className="px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-medium hover:opacity-90 disabled:opacity-50"
+                  >
+                    {t("downloadToDevice")}
+                  </button>
                 )}
+                {canRedownload(job.status) && (
+                  <button
+                    type="button"
+                    disabled={rowBusy}
+                    onClick={() => void handleRedownload(job.id)}
+                    className="px-4 py-2 rounded-lg border border-[var(--border)] text-sm font-medium hover:bg-[var(--border)] disabled:opacity-50"
+                  >
+                    {t("historyRedownload")}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  disabled={rowBusy}
+                  onClick={() => void handleDelete(job.id)}
+                  className="px-4 py-2 rounded-lg border border-red-800/60 text-red-300 text-sm font-medium hover:bg-red-950/40 disabled:opacity-50"
+                >
+                  {t("historyDelete")}
+                </button>
               </div>
-            </div>
-
-            {isActive && (
-              <ProgressBars
-                phase={job.phase}
-                status={job.status}
-                progress={job.progress}
-                downloadProgress={job.downloadProgress}
-                convertProgress={job.convertProgress}
-                showConvert={showConvert}
-              />
-            )}
-
-            {job.status === "failed" && job.errorCode && (
-              <p className="text-red-400 text-sm">
-                {tErrors(job.errorCode)}
-              </p>
-            )}
-
-            {job.canDownload && (
-              <button
-                type="button"
-                onClick={() => handleDownload(job.id)}
-                className="inline-block w-full sm:w-auto text-center px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-medium hover:opacity-90"
-              >
-                {t("downloadToDevice")}
-              </button>
-            )}
-          </li>
-        );
-      })}
-    </ul>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
