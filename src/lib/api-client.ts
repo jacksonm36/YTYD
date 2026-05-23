@@ -61,6 +61,10 @@ export function apiPatch<T>(url: string, body: unknown): Promise<T> {
   });
 }
 
+export function apiDelete<T>(url: string): Promise<T> {
+  return apiFetch<T>(url, { method: "DELETE" });
+}
+
 function parseFilenameFromDisposition(header: string | null): string | null {
   if (!header) return null;
   const match = header.match(/filename\*=UTF-8''([^;]+)|filename="([^"]+)"/i);

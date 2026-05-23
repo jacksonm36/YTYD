@@ -9,6 +9,8 @@ import { LoginHistory } from "./LoginHistory";
 import { InviteLinkSettings } from "./InviteLinkSettings";
 import { PendingUsersAdmin } from "./PendingUsersAdmin";
 import { AdminServerMonitor } from "./AdminServerMonitor";
+import { AdminServerSettings } from "./AdminServerSettings";
+import { AdminDatabaseConsole } from "./AdminDatabaseConsole";
 
 export function SettingsForm() {
   const t = useTranslations("settings");
@@ -90,7 +92,7 @@ export function SettingsForm() {
   };
 
   return (
-    <div className={`space-y-8 ${isAdmin ? "max-w-3xl" : "max-w-md"}`}>
+    <div className={`space-y-8 ${isAdmin ? "max-w-5xl" : "max-w-md"}`}>
       <h1 className="text-2xl font-bold">{t("title")}</h1>
 
       <section className="space-y-3">
@@ -156,6 +158,21 @@ export function SettingsForm() {
             </h2>
             <p className="text-xs text-[var(--muted)]">{t("pendingApprovalsHint")}</p>
             <PendingUsersAdmin />
+          </section>
+
+          <section className="space-y-4">
+            <h2 className="text-sm font-medium text-[var(--muted)]">
+              {t("serverSettings")}
+            </h2>
+            <p className="text-xs text-[var(--muted)]">{t("serverSettingsIntro")}</p>
+            <AdminServerSettings />
+          </section>
+
+          <section className="space-y-4">
+            <h2 className="text-sm font-medium text-[var(--muted)]">
+              {t("dbConsole")}
+            </h2>
+            <AdminDatabaseConsole />
           </section>
 
           <section className="space-y-4">

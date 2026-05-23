@@ -35,6 +35,14 @@ model SiteConfig {
   updatedAt   DateTime @updatedAt
 }
 
+/** Admin-tunable server overrides (merged over .env at runtime). */
+model ServerSetting {
+  key       String   @id
+  value     String   @db.Text
+  updatedBy String?
+  updatedAt DateTime @updatedAt
+}
+
 model LoginEvent {
   id          String   @id @default(cuid())
   userId      String?

@@ -5,6 +5,9 @@ export async function register() {
     );
     installResponseHeaderFingerprintGuard();
 
+    const { reloadRuntimeSettings } = await import("@/lib/runtime-settings");
+    await reloadRuntimeSettings();
+
     const { validateProductionConfig } = await import(
       "@/lib/production-guard"
     );
