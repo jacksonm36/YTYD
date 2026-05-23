@@ -82,7 +82,7 @@ export async function validatePublicUrl(urlString: string): Promise<URL> {
 
   // Single-video download only (playlist/radio params make yt-dlp much slower).
   if (
-    hostname.includes("youtube.com") ||
+    hostname === "youtube.com" ||
     hostname === "youtu.be" ||
     hostname.endsWith(".youtube.com")
   ) {
