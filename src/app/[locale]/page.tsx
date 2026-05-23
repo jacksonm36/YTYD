@@ -3,6 +3,9 @@ import { Link } from "@/i18n/routing";
 import { SupportedPlatforms } from "@/components/SupportedPlatforms";
 import { auth } from "@/auth";
 
+/** Session-aware; must not be statically cached at build time. */
+export const dynamic = "force-dynamic";
+
 export default async function HomePage({
   params,
 }: {
