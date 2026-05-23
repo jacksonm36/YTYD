@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci?schema=public
+  AUTH_SECRET: ci-auth-secret-minimum-32-characters-long
+  DOWNLOAD_TOKEN_SECRET: ci-download-secret-minimum-32-chars
+
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -14,7 +19,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: npm
 
       - name: Install dependencies
@@ -25,10 +30,6 @@ jobs:
 
       - name: Build
         run: npm run build
-        env:
-          DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci?schema=public
-          AUTH_SECRET: ci-auth-secret-minimum-32-characters-long
-          DOWNLOAD_TOKEN_SECRET: ci-download-secret-minimum-32-chars
 
       - name: Audit (high+)
         run: npm run audit:check

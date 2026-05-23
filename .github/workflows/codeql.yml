@@ -1,5 +1,10 @@
 name: CodeQL
 
+env:
+  DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci?schema=public
+  AUTH_SECRET: ci-auth-secret-minimum-32-characters-long
+  DOWNLOAD_TOKEN_SECRET: ci-download-secret-minimum-32-chars
+
 on:
   push:
     branches: [main]
